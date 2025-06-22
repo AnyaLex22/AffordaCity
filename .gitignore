@@ -1,4 +1,14 @@
 node_modules/
 .env
 .DS_Store
+.cache
+*.pack
+
+# IDE
+.vscode/
+*.log
+
+# Backup
+*backup*/
+
 build/
