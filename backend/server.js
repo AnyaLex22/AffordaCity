@@ -36,7 +36,25 @@ const CityCost = mongoose.model('CityCost', new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 }));
 
+
 // Routes
+// Temporary seeding route - add this before your other routes
+app.get('/seed-cities', async (req, res) => {
+  try {
+    await CityCost.deleteMany({});
+    await CityCost.insertMany([
+      { city: "New York", country: "USA", costOfLivingIndex: 100, rentIndex: 95 },
+      { city: "London", country: "UK", costOfLivingIndex: 90, rentIndex: 85 },
+      { city: "Tokyo", country: "Japan", costOfLivingIndex: 88, rentIndex: 78 },
+      { city: "Amsterdam", country: "Netherlands", costOfLivingIndex: 82, rentIndex: 75 },
+      { city: "Oslo", country: "Norway", costOfLivingIndex: 86, rentIndex: 80 },
+      { city: "Bangkok", country: "Thailand", costOfLivingIndex: 55, rentIndex: 45 }
+    ]);
+    res.send('Cities seeded successfully');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 // Add to server.js (temporary route)
 app.get('/seed-more-cities', async (req, res) => {
   try {
@@ -75,6 +93,41 @@ app.get('/api/cities', async (req, res) => {
     res.json({ cities, countries });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/cities', async (req, res) => {
+  try {
+    const newCity = new CityCost({
+      city: req.body.city,
+      country: req.body.country,
+      costOfLivingIndex: req.body.costOfLivingIndex,
+      rentIndex: req.body.rentIndex,
+      groceriesIndex: req.body.groceriesIndex,
+      restaurantIndex: req.body.restaurantIndex
+    });
+
+    const savedCity = await newCity.save();
+    res.status(201).json(savedCity);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.get('/fetch-external-data', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.example.com/cities');
+    const citiesData = response.data.map(city => ({
+      city: city.name,
+      country: city.country,
+      costOfLivingIndex: city.indices.cost_of_living,
+      rentIndex: city.indices.rent
+    }));
+    
+    await citycosts.insertMany(citiesData);
+    res.send(`${citiesData.length} cities added from external API`);
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 });
 
@@ -153,7 +206,7 @@ app.post('/api/calculate', async (req, res) => {
   }
 });
 
-// Add this after all your API routes
+
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/build')));
   
@@ -173,18 +226,4 @@ app.use(cors({
   ]
 }));
 
-// Temporary seeding route - add this before your other routes
-app.get('/seed-cities', async (req, res) => {
-  try {
-    await CityCost.deleteMany({});
-    await CityCost.insertMany([
-      { city: "New York", country: "USA", costOfLivingIndex: 100, rentIndex: 95 },
-      { city: "London", country: "UK", costOfLivingIndex: 90, rentIndex: 85 },
-      { city: "Tokyo", country: "Japan", costOfLivingIndex: 88, rentIndex: 78 }
-    ]);
-    res.send('Cities seeded successfully');
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
 
