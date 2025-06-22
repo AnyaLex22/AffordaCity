@@ -1,0 +1,1 @@
+await apiClient.post('/api/calculate', { city, salary });

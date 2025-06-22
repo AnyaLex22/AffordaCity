@@ -1,131 +1,209 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, TextField, Button, Select, MenuItem, FormControl, InputLabel, Paper, Box, CircularProgress, Alert } from '@mui/material';
+import {
+  Container,
+  Typography,
+  Box,
+  Divider,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import axios from 'axios';
 
 function App() {
+  // State declarations
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
   const [salary, setSalary] = useState('');
   const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [calculations, setCalculations] = useState([]);
 
+  // Fetch cities on component mount
+  // Replace your useEffect with this:
   useEffect(() => {
     const fetchCities = async () => {
       try {
-        const response = await axios.get('/api/cities');
-        setCities(response.data);
+        const response = await apiClient.get('/cities');
+        setCities(response.data || []);
       } catch (err) {
-        setError('Failed to fetch cities');
+        console.error('Failed to fetch cities:', err);
+        setCities([]); // Fallback to empty array
+        // Optionally show error to user
       }
     };
     fetchCities();
   }, []);
 
+  // Update your calculation handler:
   const handleCalculate = async () => {
-    if (!selectedCity || !salary) {
-      setError('Please select a city and enter your salary');
-      return;
-    }
+    if (!selectedCity || !salary) return;
 
-    setLoading(true);
-    setError('');
     try {
-      const response = await axios.post('/api/calculate', {
+      const response = await apiClient.post('/calculate', {
         city: selectedCity,
         salary: parseFloat(salary)
       });
-      setResult(response.data);
+      
+      setResult(response);
+      setCalculations(prev => [...prev, {
+        city: response.city,
+        salary: salary,
+        rent: response.estimatedMonthlyRent,
+        affordability: response.affordability
+      }]);
     } catch (err) {
-      setError(err.response?.data?.message || 'Calculation failed');
-    } finally {
-      setLoading(false);
+      console.error('Calculation failed:', err);
+      // Optionally show error to user
     }
   };
 
+  // Delete calculation handler
+  const handleDeleteCalculation = (index) => {
+    const updatedCalculations = [...calculations];
+    updatedCalculations.splice(index, 1);
+    setCalculations(updatedCalculations);
+  };
+
+  // In App.js, replace the entire return statement with this:
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          Can I Afford This City?
+    <div className="App">
+      {/* Header Section */}
+      <header className="App-header">
+        <Typography variant="h3" gutterBottom>
+          Afford City Calculator
         </Typography>
-        
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 3 }}>
-          <FormControl fullWidth>
-            <InputLabel id="city-select-label">Select City</InputLabel>
-            <Select
-              labelId="city-select-label"
-              value={selectedCity}
-              label="Select City"
-              onChange={(e) => setSelectedCity(e.target.value)}
-            >
-              {cities.map((city) => (
-                <MenuItem key={city.city} value={city.city}>
-                  {city.city}, {city.country}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <Typography variant="subtitle1">
+          Compare cost of living between cities
+        </Typography>
+      </header>
 
-          <TextField
-            fullWidth
-            label="Your Annual Salary (USD)"
-            variant="outlined"
-            type="number"
-            value={salary}
-            onChange={(e) => setSalary(e.target.value)}
-          />
+      <Divider sx={{ my: 3 }} />
 
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={handleCalculate}
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Calculate Affordability'}
-          </Button>
-
-          {error && <Alert severity="error">{error}</Alert>}
-        </Box>
-
-        {result && (
-          <Box sx={{ mt: 4, p: 3, border: '1px solid #ddd', borderRadius: 1 }}>
-            <Typography variant="h5" gutterBottom>
-              Results for {result.city}, {result.country}
-            </Typography>
-            
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-              <Typography>Monthly Salary:</Typography>
-              <Typography fontWeight="bold">${result.monthlySalary.toFixed(2)}</Typography>
+      {/* Calculator Section */}
+      <section className="calculator-section">
+        <Container maxWidth="md">
+          <Typography variant="h5" gutterBottom>
+            Cost Calculator
+          </Typography>
+          
+          <Box component="form" sx={{ mt: 3 }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Select City</InputLabel>
+                  <Select
+                    label="Select City"
+                    value={selectedCity}
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                  >
+                    {Array.isArray(cities) && cities.map((city) => (
+                      <MenuItem key={city._id} value={city.city}>
+                        {`${city.city}, ${city.country}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
               
-              <Typography>Estimated Monthly Rent:</Typography>
-              <Typography fontWeight="bold">${result.estimatedMonthlyRent.toFixed(2)}</Typography>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Annual Salary (USD)"
+                  type="number"
+                  value={salary}
+                  onChange={(e) => setSalary(e.target.value)}
+                />
+              </Grid>
               
-              <Typography>Estimated Living Costs:</Typography>
-              <Typography fontWeight="bold">${result.estimatedMonthlyLivingCost.toFixed(2)}</Typography>
-              
-              <Typography>Disposable Income:</Typography>
-              <Typography 
-                fontWeight="bold" 
-                color={result.disposableIncome > 0 ? 'success.main' : 'error.main'}
-              >
-                ${result.disposableIncome.toFixed(2)}
-              </Typography>
-              
-              <Typography>Affordability:</Typography>
-              <Typography 
-                fontWeight="bold" 
-                color={result.affordability === 'affordable' ? 'success.main' : 'error.main'}
-              >
-                {result.affordability.toUpperCase()}
-              </Typography>
-            </Box>
+              <Grid item xs={12}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={handleCalculate}
+                  sx={{ py: 2 }}
+                >
+                  Calculate Affordability
+                </Button>
+              </Grid>
+            </Grid>
           </Box>
-        )}
-      </Paper>
-    </Container>
+
+          {result && (
+            <Box className="result-box" sx={{ mt: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Results for {result.city}, {result.country}
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography>Monthly Salary:</Typography>
+                  <Typography fontWeight="bold">${result.monthlySalary.toFixed(2)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography>Estimated Rent:</Typography>
+                  <Typography fontWeight="bold">${result.estimatedMonthlyRent.toFixed(2)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography>Living Costs:</Typography>
+                  <Typography fontWeight="bold">${result.estimatedMonthlyLivingCost.toFixed(2)}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography>Disposable Income:</Typography>
+                  <Typography 
+                    fontWeight="bold"
+                    color={result.disposableIncome > 0 ? 'success.main' : 'error.main'}
+                  >
+                    ${result.disposableIncome.toFixed(2)}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </Container>
+      </section>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* My Calculations Section */}
+      <section className="saved-calculations">
+        <Container maxWidth="md">
+          <Typography variant="h5" gutterBottom>
+            My Saved Calculations
+          </Typography>
+          
+          <List className="saved-list" sx={{ width: '100%', mt: 2 }}>
+            {calculations.map((calc, index) => (
+              <ListItem 
+                key={index} 
+                divider
+                className={`saved-item ${calc.affordability.toLowerCase().includes('affordable') ? 'affordable' : 'not-affordable'}`}
+              >
+                <ListItemText
+                  primary={`${calc.city} - ${calc.affordability}`}
+                  secondary={`Salary: $${calc.salary} | Rent: $${calc.rent.toFixed(2)}`}
+                />
+                <IconButton edge="end" onClick={() => handleDeleteCalculation(index)}>
+                  <DeleteIcon />
+                </IconButton>
+              </ListItem>
+            ))}
+          </List>
+        </Container>
+      </section>
+    </div>
   );
+  
 }
 
 export default App;
