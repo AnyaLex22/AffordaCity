@@ -11,3 +11,20 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.error-boundary {
+  padding: 20px;
+  text-align: center;
+  background: #fff8f8;
+  border: 1px solid #ffcccc;
+  margin: 20px;
+}
+
+.error-boundary button {
+  padding: 8px 16px;
+  background: #4e73df;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}

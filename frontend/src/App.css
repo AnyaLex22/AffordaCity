@@ -105,14 +105,61 @@
   max-width: 800px;
 }
 
+/* Enhanced button styles */
+.MuiButton-contained {
+  background-color: #4e73df !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0.5px !important;
+  padding: 12px 24px !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  transition: all 0.3s ease !important;
+}
+
+.MuiButton-contained:hover {
+  background-color: #3a5bd9 !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+}
+
+.MuiButton-contained:active {
+  transform: translateY(0);
+}
+
+/* Form inputs */
+.MuiOutlinedInput-root {
+  border-radius: 8px !important;
+}
+
+.MuiInputLabel-root {
+  transform: translate(14px, 14px) scale(1) !important;
+}
+
+.MuiInputLabel-shrink {
+  transform: translate(14px, -9px) scale(0.75) !important;
+}
+
+/* Card hover effects */
+.calculator-section, .saved-calculations {
+  transition: all 0.3s ease;
+}
+
+.calculator-section:hover, .saved-calculations:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .App {
     padding: 1rem;
   }
-  
+} 
   .calculator-section,
   .saved-calculations {
     padding: 1rem;
+  }
+@media (max-width: 600px) {
+  .result-box .MuiGrid-item {
+    width: 100% !important;
   }
 }

@@ -22,7 +22,6 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import axios from 'axios';
 import apiClient from './api/client';
 
 
@@ -51,12 +50,12 @@ function App() {
       setError(null);
       try {
         const response = await apiClient.get('api/cities');
-        if (!response.data) {
-          throw new Error('No data received from server');
-        }
-        setCities(Array.isArray(response.data) ? response.data : []);
+        setCities(response.cities || []);
+        console.log('API Response:', response);
+
+        //setCities(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
-        console.error('Failed to fetch cities:', err);
+        console.error('Failed to fetch:', err.response); // Add this line
         setError(err.message);
         showSnackbar(err.message, 'error');
       } finally {
@@ -78,31 +77,48 @@ function App() {
   const handleCalculate = async () => {
     if (!selectedCity || !salary) return;
 
-    setIsLoading(prev => ({...prev, calculation: true}));
+    setIsLoading(prev => ({ ...prev, calculation: true }));
     setError(null);
+
     try {
-      const response = await apiClient.post('api/calculate', {
+      const data = await apiClient.post('api/calculate', {
         city: selectedCity,
-        salary: parseFloat(salary)
+        salary: parseFloat(salary),
       });
-      
-      setResult(response.data);
-      setCalculations(prev => [...prev, {
-        city: selectedCity,
-        salary: salary,
-        rent: response.data.estimatedMonthlyRent,
-        affordability: response.data.affordability,
-        timestamp: new Date().toISOString()
-      }]);
+
+      console.log('Received data:', data);
+
+      if (
+        !data ||
+        typeof data.estimatedMonthlyRent !== 'number' ||
+        typeof data.disposableIncome !== 'number'
+      ) {
+        throw new Error('Incomplete data from the server.');
+      }
+
+      setResult(data);
+
+      setCalculations(prev => [
+        ...prev,
+        {
+          city: selectedCity,
+          salary: salary,
+          rent: data.estimatedMonthlyRent ?? 0,
+          affordability: data.affordability ?? 'Unknown',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
       showSnackbar('Calculation successful!', 'success');
     } catch (err) {
       console.error('Calculation failed:', err);
       setError(err.message);
       showSnackbar(err.message, 'error');
     } finally {
-      setIsLoading(prev => ({...prev, calculation: false}));
+      setIsLoading(prev => ({ ...prev, calculation: false }));
     }
   };
+
 
   // Delete calculation handler
   const handleDeleteCalculation = (index) => {
@@ -122,10 +138,10 @@ function App() {
       <Container maxWidth="lg">
         <Box sx={{ py: 4, textAlign: 'center' }}>
           <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
-            Afford City Calculator
+            AffordCity - Can You Afford Your Dream City?
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
-            Compare cost of living between cities
+            "Compare your salary with real cost of living data from around the world. Calculate if you can afford to live in your dream city with our comprehensive affordability calculator."
           </Typography>
         </Box>
 
@@ -165,9 +181,10 @@ function App() {
           
           <Box component="form" sx={{ mt: 3 }}>
             <Grid container spacing={3}>
-              <Grid item columnSpan={{ xs: 12, md: 6 }}>
+              
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
-                  <InputLabel>Select City</InputLabel>
+                  <InputLabel>Select Location</InputLabel>
                   <Select
                     label="Select City"
                     value={selectedCity}
@@ -195,11 +212,12 @@ function App() {
                   </Select>
                 </FormControl>
               </Grid>
+
               
               <Grid xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Annual Salary (USD)"
+                  label="Annual Salary"
                   type="number"
                   value={salary}
                   onChange={(e) => setSalary(e.target.value)}

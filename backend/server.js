@@ -3,14 +3,22 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
+
 const app = express();
 
-// Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://affordacity-frontend.onrender.com',
+    'http://localhost:3000'
+  ]
+}));
+
 app.use(express.json());
 
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cityCostCalculator' , {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
@@ -29,10 +37,42 @@ const CityCost = mongoose.model('CityCost', new mongoose.Schema({
 }));
 
 // Routes
+// Add to server.js (temporary route)
+app.get('/seed-more-cities', async (req, res) => {
+  try {
+    await CityCost.insertMany([
+      { city: "Paris", country: "France", costOfLivingIndex: 85, rentIndex: 75 },
+      { city: "Berlin", country: "Germany", costOfLivingIndex: 80, rentIndex: 70 },
+      { city: "Sydney", country: "Australia", costOfLivingIndex: 92, rentIndex: 88 },
+      { city: "Toronto", country: "Canada", costOfLivingIndex: 78, rentIndex: 72 },
+      { city: "Dubai", country: "UAE", costOfLivingIndex: 95, rentIndex: 90 }
+    ]);
+    res.send('Additional cities seeded successfully');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+app.get('/api/all-cities', async (req, res) => {
+  try {
+    const response = await axios.get('https://countriesnow.space/api/v0.1/countries');
+    const allCities = response.data.data.flatMap(country => 
+      country.cities.map(city => ({
+        city,
+        country: country.country
+      }))
+    );
+    res.json(allCities);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.get('/api/cities', async (req, res) => {
   try {
     const cities = await CityCost.find().sort({ city: 1 });
-    res.json(cities);
+    const countries = [...new Set(cities.map(city => city.country))].sort();
+    res.json({ cities, countries });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -113,6 +153,38 @@ app.post('/api/calculate', async (req, res) => {
   }
 });
 
+// Add this after all your API routes
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+  });
+}
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.use(cors({
+  origin: [
+    'https://affordacity-frontend.onrender.com',
+    'http://localhost:3000'
+  ]
+}));
+
+// Temporary seeding route - add this before your other routes
+app.get('/seed-cities', async (req, res) => {
+  try {
+    await CityCost.deleteMany({});
+    await CityCost.insertMany([
+      { city: "New York", country: "USA", costOfLivingIndex: 100, rentIndex: 95 },
+      { city: "London", country: "UK", costOfLivingIndex: 90, rentIndex: 85 },
+      { city: "Tokyo", country: "Japan", costOfLivingIndex: 88, rentIndex: 78 }
+    ]);
+    res.send('Cities seeded successfully');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
