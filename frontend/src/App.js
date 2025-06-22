@@ -1,25 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Container,
-  Typography,
-  Box,
-  Divider,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  CircularProgress,
-  Chip,
-  Alert,
-  Snackbar
+import {Container, Typography, Box, Divider, Grid, FormControl, InputLabel, 
+  Select, MenuItem, TextField, Button, List, ListItem, ListItemText, IconButton, 
+  CircularProgress, Chip, Alert, Snackbar
 } from '@mui/material';
+
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import apiClient from './api/client';
@@ -43,7 +27,7 @@ function App() {
     severity: 'error'
   });
 
-  // Fetch cities on component mount
+  // Fetch cities on component mount -fetches cities from backend
   useEffect(() => {
     const fetchCities = async () => {
       setIsLoading(prev => ({...prev, cities: true}));
@@ -55,7 +39,7 @@ function App() {
 
         //setCities(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
-        console.error('Failed to fetch:', err.response); // Add this line
+        console.error('Failed to fetch:', err.response); 
         setError(err.message);
         showSnackbar(err.message, 'error');
       } finally {
@@ -65,6 +49,7 @@ function App() {
     fetchCities();
   }, []);
 
+  //success/error/info messages - bottom right prompt
   const showSnackbar = (message, severity = 'error') => {
     setSnackbar({
       open: true,
@@ -109,6 +94,24 @@ function App() {
         },
       ]);
 
+      try {
+        await apiClient.post('api/save-calculation', {
+          city: data.city,
+          country: data.country,
+          salary: parseFloat(salary),
+          estimatedMonthlyRent: data.estimatedMonthlyRent,
+          estimatedMonthlyLivingCost: data.estimatedMonthlyLivingCost,
+          disposableIncome: data.disposableIncome,
+          affordability: data.affordability,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log('Calculation saved to DB');
+      } catch (saveErr) {
+        console.error('Failed to save calculation to DB:', saveErr);
+      }
+
+
       showSnackbar('Calculation successful!', 'success');
     } catch (err) {
       console.error('Calculation failed:', err);
@@ -132,6 +135,7 @@ function App() {
     setSnackbar(prev => ({...prev, open: false}));
   };
 
+  //Render components
   return (
     <div className="App">
       {/* Header Section */}
@@ -147,7 +151,7 @@ function App() {
 
         <Divider sx={{ my: 3 }} />
 
-        {/* Error Display */}
+        {/* Error Display - if fetching cities/calculating fails, retry button */}
         {error && (
           <Alert 
             severity="error" 
@@ -246,6 +250,7 @@ function App() {
             </Grid>
           </Box>
 
+          {/*calculations result*/}
           {result && (
             <Box sx={{ 
               mt: 4, 
@@ -294,7 +299,7 @@ function App() {
 
         <Divider sx={{ my: 3 }} />
 
-        {/* My Calculations Section */}
+        {/*Saved Calculations Section */}
         <Box className="saved-calculations" sx={{ 
           backgroundColor: 'background.paper',
           borderRadius: 2,
@@ -384,7 +389,7 @@ function App() {
         </Box>
       </Container>
 
-      {/* Snackbar for notifications */}
+      {/* Notifications Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}

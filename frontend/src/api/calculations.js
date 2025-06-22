@@ -1,3 +1,5 @@
+//frontend
+//sends POST request to backend - calculate based on city + annual salary
 await apiClient.post('/api/calculate', { city, salary });
 
 if (!data || !data.estimatedMonthlyRent) {
@@ -7,10 +9,12 @@ if (!data || !data.estimatedMonthlyRent) {
 
 console.log(data?.estimatedMonthlyRent);
 
+//backend
 app.post('/api/calculate', async (req, res) => {
   try {
     const { city, salary } = req.body;
 
+    //ensures correct values input - salary = number + city =??
     if (!city || typeof salary !== 'number') {
       return res.status(400).json({ message: 'City and valid salary are required.' });
     }
@@ -26,6 +30,7 @@ app.post('/api/calculate', async (req, res) => {
     const estimatedMonthlyLivingCost = (costData.costOfLivingIndex / 100) * 3000; // Approx
     const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
     const affordability = disposableIncome > 0 ? 'Affordable' : 'Not Affordable';
+
 
     // Validate values before sending
     if (
@@ -44,6 +49,7 @@ app.post('/api/calculate', async (req, res) => {
         });
 
 
+    //results
     return res.json({
       city: costData.city,
       country: costData.country,

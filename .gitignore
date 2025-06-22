@@ -1,8 +1,11 @@
-node_modules/
+node_modules*/
 .env
 .DS_Store
 .cache
 *.pack
+*.zip
+*.tar.gz
+*.bak
 
 # IDE
 .vscode/

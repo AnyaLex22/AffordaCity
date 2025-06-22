@@ -4,8 +4,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
-
 const app = express();
+
 
 app.use(cors({
   origin: [
@@ -18,12 +18,13 @@ app.use(express.json());
 
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cityCostCalculator' , {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:<lexie222>@devcluster.hiv28jk.mongodb.net/' , {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => console.error('MongoDB connection error:', err));
+
 
 // City Cost Model
 const CityCost = mongoose.model('CityCost', new mongoose.Schema({
@@ -36,41 +37,23 @@ const CityCost = mongoose.model('CityCost', new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 }));
 
+//Save calculations - history
+const CalculationSchema =  new mongoose.Schema({
+  city: String,
+  country: String,
+  salary: Number,
+  estimatedMonthlyRent: Number,
+  estimatedMonthlyLivingCost: Number,
+  disposableIncome: Number,
+  affordability: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
+const Calculation = mongoose.model('Calculation', CalculationSchema);
+
 
 // Routes
-// Temporary seeding route - add this before your other routes
-app.get('/seed-cities', async (req, res) => {
-  try {
-    await CityCost.deleteMany({});
-    await CityCost.insertMany([
-      { city: "New York", country: "USA", costOfLivingIndex: 100, rentIndex: 95 },
-      { city: "London", country: "UK", costOfLivingIndex: 90, rentIndex: 85 },
-      { city: "Tokyo", country: "Japan", costOfLivingIndex: 88, rentIndex: 78 },
-      { city: "Amsterdam", country: "Netherlands", costOfLivingIndex: 82, rentIndex: 75 },
-      { city: "Oslo", country: "Norway", costOfLivingIndex: 86, rentIndex: 80 },
-      { city: "Bangkok", country: "Thailand", costOfLivingIndex: 55, rentIndex: 45 }
-    ]);
-    res.send('Cities seeded successfully');
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-// Add to server.js (temporary route)
-app.get('/seed-more-cities', async (req, res) => {
-  try {
-    await CityCost.insertMany([
-      { city: "Paris", country: "France", costOfLivingIndex: 85, rentIndex: 75 },
-      { city: "Berlin", country: "Germany", costOfLivingIndex: 80, rentIndex: 70 },
-      { city: "Sydney", country: "Australia", costOfLivingIndex: 92, rentIndex: 88 },
-      { city: "Toronto", country: "Canada", costOfLivingIndex: 78, rentIndex: 72 },
-      { city: "Dubai", country: "UAE", costOfLivingIndex: 95, rentIndex: 90 }
-    ]);
-    res.send('Additional cities seeded successfully');
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
+//API returns list of all countries & cities
 app.get('/api/all-cities', async (req, res) => {
   try {
     const response = await axios.get('https://countriesnow.space/api/v0.1/countries');
@@ -86,6 +69,7 @@ app.get('/api/all-cities', async (req, res) => {
   }
 });
 
+//all cities listed in DB
 app.get('/api/cities', async (req, res) => {
   try {
     const cities = await CityCost.find().sort({ city: 1 });
@@ -96,6 +80,7 @@ app.get('/api/cities', async (req, res) => {
   }
 });
 
+//manually add city data
 app.post('/api/cities', async (req, res) => {
   try {
     const newCity = new CityCost({
@@ -114,9 +99,36 @@ app.post('/api/cities', async (req, res) => {
   }
 });
 
+//Save calculations - history
+app.post('/api/save-calculation', async (req, res) => {
+  try {
+    const { city, salary, estimatedMonthlyRent,
+      estimatedMonthlyLivingCost, disposableIncome, affordability, timestamp } = req.body;
+    if (!city || !salary || !estimatedMonthlyRent || !estimatedMonthlyLivingCost || disposableIncome === undefined ||!affordability || !timestamp) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
+    const newCalc = new Calculation({
+      city,
+      salary,
+      estimatedMonthlyRent,
+      estimatedMonthlyLivingCost,
+      disposableIncome,
+      affordability,
+      timestamp
+    });
+    await newCalc.save();
+    res.status(201).json({ message: 'Calculation saved' });
+  } catch (err) {
+    console.error('Failed to save calculation::', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+//external data fetch
 app.get('/fetch-external-data', async (req, res) => {
   try {
-    const response = await axios.get('https://api.example.com/cities');
+    const response = await axios.get('https://cities-cost-of-living-and-average-prices-api.p.rapidapi.com');
     const citiesData = response.data.map(city => ({
       city: city.name,
       country: city.country,
@@ -124,16 +136,17 @@ app.get('/fetch-external-data', async (req, res) => {
       rentIndex: city.indices.rent
     }));
     
-    await citycosts.insertMany(citiesData);
+    await CityCost.insertMany(citiesData);
     res.send(`${citiesData.length} cities added from external API`);
   } catch (err) {
     res.status(500).send(err.message);
   }
 });
 
+//
 app.get('/api/cost/:city', async (req, res) => {
   try {
-    // Check if we have recent data in DB (within 7 days)
+    // Check if we have recent data in DB
     const dbData = await CityCost.findOne({
       city: req.params.city,
       lastUpdated: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
@@ -143,12 +156,12 @@ app.get('/api/cost/:city', async (req, res) => {
       return res.json(dbData);
     }
 
-    // Fetch from Numbeo API if no recent data
-    const response = await axios.get(`https://numbeo.p.rapidapi.com/city_cost`, {
+    // Fetch from API if no recent data
+    const response = await axios.get(`https://cities-cost-of-living-and-average-prices-api.p.rapidapi.com`, {
       params: { city: req.params.city },
       headers: {
         'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
-        'X-RapidAPI-Host': 'numbeo.p.rapidapi.com'
+        'X-RapidAPI-Host': 'cities-cost-of-living-and-average-prices-api.p.rapidapi.com'
       }
     });
 
@@ -175,6 +188,7 @@ app.get('/api/cost/:city', async (req, res) => {
   }
 });
 
+//afford cost calculator
 app.post('/api/calculate', async (req, res) => {
   try {
     const { city, salary } = req.body;
@@ -206,7 +220,18 @@ app.post('/api/calculate', async (req, res) => {
   }
 });
 
+//history
+app.get('/api/calculations', async (req, res) => {
+  try {
+    const history = await Calculation.find().sort({ timestamp: -1 });
+    res.json(history);
+  } catch (err) {
+    console.error('Error fetching calculation history:', err);
+    res.status(500).json({ message: 'Failed to load history' });
+  }
+});
 
+//serves react build files - frontend
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/build')));
   
@@ -214,6 +239,7 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
   });
 }
+
 
 // Start server
 const PORT = process.env.PORT || 5000;

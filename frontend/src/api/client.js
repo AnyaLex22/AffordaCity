@@ -9,10 +9,10 @@ const apiClient = axios.create({
   }
 });
 
-// Add request interceptor for error handling
+// request interceptor for error handling
 apiClient.interceptors.request.use(
   config => {
-    // You can add auth tokens here if needed
+    
     return config;
   },
   error => {
@@ -20,7 +20,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Add response interceptor
+// response interceptor
 apiClient.interceptors.response.use(
   response => {
     return response.data; // Automatically unwrap the data
