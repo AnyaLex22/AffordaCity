@@ -9,20 +9,21 @@ const app = express();
 
 app.use(cors({
   origin: [
+    'http://localhost:3000',
     'https://affordacity-frontend.onrender.com',
-    'http://localhost:3000'
-  ]
+    'https://affordacity.onrender.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 
 app.use(express.json());
 
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:<lexie222>@devcluster.hiv28jk.mongodb.net/' , {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cityCostCalculator' )
+.then(() => console.log('MongoDB Connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
 
@@ -51,6 +52,11 @@ const CalculationSchema =  new mongoose.Schema({
 
 const Calculation = mongoose.model('Calculation', CalculationSchema);
 
+// Add this before your routes in server.js
+app.use((req, res, next) => {
+  console.log(`Incoming ${req.method} request to ${req.path}`);
+  next();
+});
 
 // Routes
 //API returns list of all countries & cities
@@ -231,25 +237,9 @@ app.get('/api/calculations', async (req, res) => {
   }
 });
 
-//serves react build files - frontend
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
-  });
-}
-
 
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-app.use(cors({
-  origin: [
-    'https://affordacity-frontend.onrender.com',
-    'http://localhost:3000'
-  ]
-}));
 
 

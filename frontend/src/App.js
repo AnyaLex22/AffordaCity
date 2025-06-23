@@ -33,11 +33,13 @@ function App() {
       setIsLoading(prev => ({...prev, cities: true}));
       setError(null);
       try {
-        const response = await apiClient.get('api/cities');
+        const response = await apiClient.get('/cities');
         setCities(response.cities || []);
         console.log('API Response:', response);
 
         //setCities(Array.isArray(response.data) ? response.data : []);
+        //const citiesData = response?.data?.cities || response?.cities || [];
+        //setCities(citiesData);
       } catch (err) {
         console.error('Failed to fetch:', err.response); 
         setError(err.message);
@@ -186,11 +188,13 @@ function App() {
           <Box component="form" sx={{ mt: 3 }}>
             <Grid container spacing={3}>
               
-              <Grid size={{ xs: 12, md: 6 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Select Location</InputLabel>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth sx={{ minWidth: 200 }}>
+                  <InputLabel id="select-city-label">Select Location</InputLabel>
                   <Select
-                    label="Select City"
+                    labelId="select-city-label"
+                    id="select-city"
+                    label="Select Location"
                     value={selectedCity}
                     onChange={(e) => setSelectedCity(e.target.value)}
                     disabled={isLoading.cities}
@@ -218,7 +222,7 @@ function App() {
               </Grid>
 
               
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Annual Salary"
@@ -226,7 +230,7 @@ function App() {
                   value={salary}
                   onChange={(e) => setSalary(e.target.value)}
                   disabled={isLoading.calculation}
-                  error={salary && salary <= 0}
+                   error={!!(salary && salary <= 0)}
                   helperText={salary && salary <= 0 ? 'Salary must be positive' : ''}
                   InputProps={{
                     startAdornment: '$'

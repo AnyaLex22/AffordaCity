@@ -6,7 +6,7 @@
     "preinstall": "npx npm-force-resolutions",
     "start": "node server.js",
     "server": "nodemon server.js",
-    "client": "npm start --prefix frontend",
+    "client": "npm start --prefix ../frontend",
     "build": "npm install --prefix frontend && npm run build --prefix frontend",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -29,6 +29,7 @@
     "webpack-dev-server": "^4.15.2"
   },
   "devDependencies": {
+    "concurrently": "^9.2.0",
     "nodemon": "^3.1.10"
   },
   "resolutions": {

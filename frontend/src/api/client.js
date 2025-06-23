@@ -9,25 +9,43 @@ const apiClient = axios.create({
   }
 });
 
-// request interceptor for error handling
+// Add request interceptor
 apiClient.interceptors.request.use(
   config => {
-    
+    // Add /api prefix if needed
+    if (!config.url.startsWith('/api') && !config.url.startsWith('/auth')) {
+      config.url = `/api${config.url}`;
+    }
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
-// response interceptor
+// Add response interceptor
 apiClient.interceptors.response.use(
   response => {
-    return response.data; // Automatically unwrap the data
+    if (response.data && response.data.error) {
+      return Promise.reject({
+        message: response.data.message || 'API Error',
+        data: response.data,
+        status: response.status
+      });
+    }
+    return response.data;
   },
   error => {
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
+    const errorMessage = error.response?.data?.message ||
+                         error.message ||
+                         'Network Error';
+    const errorDetails = {
+      message: errorMessage,
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data
+    };
+
+    console.error('API Error Details:', errorDetails);
+    return Promise.reject(errorDetails);
   }
 );
 
