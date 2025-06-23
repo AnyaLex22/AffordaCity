@@ -1,0 +1,30 @@
+[{
+  "_id": {
+    "$oid": "685868cf78c73049dab63a92"
+  },
+  "city": "New York",
+  "salary": 45000,
+  "estimatedMonthlyRent": 1900,
+  "estimatedMonthlyLivingCost": 3000,
+  "disposableIncome": -1150,
+  "affordability": "not affordable",
+  "timestamp": {
+    "$date": "2025-06-22T20:34:23.603Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "685869bf78c73049dab63a95"
+  },
+  "city": "Sydney",
+  "salary": 78000,
+  "estimatedMonthlyRent": 1600,
+  "estimatedMonthlyLivingCost": 2550,
+  "disposableIncome": 2350,
+  "affordability": "affordable",
+  "timestamp": {
+    "$date": "2025-06-22T20:38:23.537Z"
+  },
+  "__v": 0
+}]

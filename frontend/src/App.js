@@ -68,7 +68,7 @@ function App() {
     setError(null);
 
     try {
-      const data = await apiClient.post('api/calculate', {
+      const data = await apiClient.post('/calculate', {
         city: selectedCity,
         salary: parseFloat(salary),
       });
@@ -97,7 +97,7 @@ function App() {
       ]);
 
       try {
-        await apiClient.post('api/save-calculation', {
+        await apiClient.post('/save-calculation', {
           city: data.city,
           country: data.country,
           salary: parseFloat(salary),

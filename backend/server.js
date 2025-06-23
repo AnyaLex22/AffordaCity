@@ -22,7 +22,7 @@ app.use(express.json());
 
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cityCostCalculator' )
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:lexie222@devcluster.hiv28jk.mongodb.net/cityCostCalculator' )
 .then(() => console.log('MongoDB Connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 

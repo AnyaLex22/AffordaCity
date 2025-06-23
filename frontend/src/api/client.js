@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
-  timeout: 10000,
+  baseURL: process.env.REACT_APP_API_URL || 'https://affordacity.onrender.com',
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'

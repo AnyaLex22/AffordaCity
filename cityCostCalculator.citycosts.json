@@ -1,0 +1,194 @@
+[{
+  "_id": {
+    "$oid": "6856ea48624d9cbd26ef915a"
+  },
+  "city": "New York",
+  "country": "USA",
+  "costOfLivingIndex": 100,
+  "rentIndex": 95,
+  "lastUpdated": {
+    "$date": "2025-06-21T17:22:16.519Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6856ea48624d9cbd26ef915b"
+  },
+  "city": "London",
+  "country": "UK",
+  "costOfLivingIndex": 90,
+  "rentIndex": 85,
+  "lastUpdated": {
+    "$date": "2025-06-21T17:22:16.519Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6856ea48624d9cbd26ef915c"
+  },
+  "city": "Tokyo",
+  "country": "Japan",
+  "costOfLivingIndex": 88,
+  "rentIndex": 78,
+  "lastUpdated": {
+    "$date": "2025-06-21T17:22:16.519Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6858353f5110ad460c6cc4a8"
+  },
+  "city": "Singapore",
+  "country": "Singapore",
+  "costOfLivingIndex": 95,
+  "rentIndex": 85,
+  "groceriesIndex": 90,
+  "restaurantIndex": 88
+},
+{
+  "_id": {
+    "$oid": "6858353f5110ad460c6cc4a9"
+  },
+  "city": "Sydney",
+  "country": "Australia",
+  "costOfLivingIndex": 85,
+  "rentIndex": 80
+},
+{
+  "_id": {
+    "$oid": "685835865110ad460c6cc4aa"
+  },
+  "city": "Amsterdam",
+  "country": "Netherlands",
+  "costOfLivingIndex": 82,
+  "rentIndex": 75
+},
+{
+  "_id": {
+    "$oid": "685835865110ad460c6cc4ab"
+  },
+  "city": "Oslo",
+  "country": "Norway",
+  "costOfLivingIndex": 86,
+  "rentIndex": 80
+},
+{
+  "_id": {
+    "$oid": "685835865110ad460c6cc4ac"
+  },
+  "city": "Bangkok",
+  "country": "Thailand",
+  "costOfLivingIndex": 55,
+  "rentIndex": 45
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c90"
+  },
+  "city": "Toronto",
+  "country": "Canada",
+  "costOfLivingIndex": 82,
+  "rentIndex": 75
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c91"
+  },
+  "city": "Vancouver",
+  "country": "Canada",
+  "costOfLivingIndex": 85,
+  "rentIndex": 80
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c92"
+  },
+  "city": "Sydney",
+  "country": "Australia",
+  "costOfLivingIndex": 90,
+  "rentIndex": 85
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c93"
+  },
+  "city": "Melbourne",
+  "country": "Australia",
+  "costOfLivingIndex": 85,
+  "rentIndex": 80
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c94"
+  },
+  "city": "Berlin",
+  "country": "Germany",
+  "costOfLivingIndex": 75,
+  "rentIndex": 60
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c95"
+  },
+  "city": "Munich",
+  "country": "Germany",
+  "costOfLivingIndex": 85,
+  "rentIndex": 75
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c96"
+  },
+  "city": "Dubai",
+  "country": "United Arab Emirates",
+  "costOfLivingIndex": 90,
+  "rentIndex": 85
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c97"
+  },
+  "city": "Zurich",
+  "country": "Switzerland",
+  "costOfLivingIndex": 150,
+  "rentIndex": 110
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c98"
+  },
+  "city": "Mumbai",
+  "country": "India",
+  "costOfLivingIndex": 50,
+  "rentIndex": 40
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c99"
+  },
+  "city": "São Paulo",
+  "country": "Brazil",
+  "costOfLivingIndex": 60,
+  "rentIndex": 50
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c9a"
+  },
+  "city": "Cape Town",
+  "country": "South Africa",
+  "costOfLivingIndex": 55,
+  "rentIndex": 45
+},
+{
+  "_id": {
+    "$oid": "685837464b95659ce2664c9b"
+  },
+  "city": "Seoul",
+  "country": "South Korea",
+  "costOfLivingIndex": 90,
+  "rentIndex": 85
+}]
