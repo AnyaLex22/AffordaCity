@@ -124,6 +124,39 @@ function App() {
     }
   };
 
+  //edit handler
+  const handleEditCalculation = (index) => {
+    setEditingIndex(index);
+    setEditedSalary(calculations[index].salary);
+  };
+
+  //save edited to db
+  const handleSaveEditedCalculation = async () => {
+    if (editingIndex === null || !editedSalary || editedSalary <= 0) return;
+
+    const updated = [...calculations];
+    const edited = { ...updated[editingIndex], salary: editedSalary };
+
+    // Optionally, re-calculate affordability here if needed
+    updated[editingIndex] = edited;
+    setCalculations(updated);
+    setEditingIndex(null);
+    setEditedSalary('');
+
+    try {
+      await apiClient.put('/update-calculation', {
+        timestamp: edited.timestamp, // identifier
+        salary: parseFloat(editedSalary),
+      });
+      showSnackbar('Calculation updated!', 'success');
+    } catch (err) {
+      console.error('Failed to update calculation:', err);
+      showSnackbar('Failed to update calculation in DB', 'error');
+    }
+  };
+
+
+
 
   // Delete calculation handler
   const handleDeleteCalculation = (index) => {
@@ -136,6 +169,11 @@ function App() {
   const handleCloseSnackbar = () => {
     setSnackbar(prev => ({...prev, open: false}));
   };
+
+  //new update
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editedSalary, setEditedSalary] = useState('');
+
 
   //Render components
   return (
@@ -368,16 +406,57 @@ function App() {
                       }
                       secondary={
                         <>
-                          <Typography component="span" variant="body2">
-                            Salary: ${calc.salary}
-                          </Typography>
-                          {' • '}
-                          <Typography component="span" variant="body2">
-                            Rent: ${calc.rent.toFixed(2)}
-                          </Typography>
+                          {editingIndex === index ? (
+                            <>
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={editedSalary}
+                                onChange={(e) => setEditedSalary(e.target.value)}
+                                sx={{ width: 120, mr: 2 }}
+                                error={!!(editedSalary && editedSalary <= 0)}
+                                helperText={editedSalary && editedSalary <= 0 ? 'Invalid' : ''}
+                                InputProps={{ startAdornment: <Typography>$</Typography> }}
+                              />
+                              <Typography component="span" variant="body2">
+                                Rent: ${calc.rent.toFixed(2)}
+                              </Typography>
+                            </>
+                          ) : (
+                            <>
+                              <Typography component="span" variant="body2">
+                                Salary: ${calc.salary}
+                              </Typography>
+                              {' • '}
+                              <Typography component="span" variant="body2">
+                                Rent: ${calc.rent.toFixed(2)}
+                              </Typography>
+                            </>
+                          )}
                         </>
                       }
+
                     />
+                    {editingIndex === index ? (
+                      <IconButton 
+                        edge="end" 
+                        color="primary" 
+                        onClick={handleSaveEditedCalculation}
+                        disabled={isLoading.calculation}
+                      >
+                        <Typography variant="button">Save</Typography>
+                      </IconButton>
+                    ) : (
+                      <IconButton 
+                        edge="end" 
+                        color="primary" 
+                        onClick={() => handleEditCalculation(index)}
+                        disabled={isLoading.calculation}
+                      >
+                        <Typography variant="button">Edit</Typography>
+                      </IconButton>
+                    )}
+
                     <IconButton 
                       edge="end" 
                       onClick={() => handleDeleteCalculation(index)}

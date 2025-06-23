@@ -38,6 +38,31 @@ const CityCost = mongoose.model('CityCost', new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 }));
 
+//update calculations
+app.put('/api/update-calculation', async (req, res) => {
+  const { timestamp, salary } = req.body;
+
+  if (!timestamp || !salary) {
+    return res.status(400).json({ error: 'Missing timestamp or salary' });
+  }
+
+  try {
+    const result = await Calculation.updateOne(
+      { timestamp },
+      { $set: { salary: parseFloat(salary) } }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ error: 'No calculation found to update' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 //Save calculations - history
 const CalculationSchema =  new mongoose.Schema({
   city: String,
@@ -51,6 +76,7 @@ const CalculationSchema =  new mongoose.Schema({
 });
 
 const Calculation = mongoose.model('Calculation', CalculationSchema);
+
 
 // Add this before your routes in server.js
 app.use((req, res, next) => {
