@@ -10,7 +10,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const requireAuth = require('./auth');
 const authRoutes = require('./authRoutes'); // adjust path
-const userCalculationsRoutes = require('./userCalcu');
+const userCalculationsRoutes = require('./userCalc');
 
 app.use('/api', userCalculationsRoutes);
 
