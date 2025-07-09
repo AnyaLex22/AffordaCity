@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoginPage from './LoginPage';
 import {Container, Typography, Box, Divider, Grid, FormControl, InputLabel, 
   Select, MenuItem, TextField, Button, List, ListItem, ListItemText, IconButton, 
   CircularProgress, Chip, Alert, Snackbar
@@ -7,9 +8,11 @@ import {Container, Typography, Box, Divider, Grid, FormControl, InputLabel,
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import apiClient from './api/client';
-
+import { jwtDecode } from 'jwt-decode';
 
 function App() {
+  //login
+  const [loggedIn, setLoggedIn] = useState(false);
   // State declarations
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
@@ -26,7 +29,55 @@ function App() {
     message: '',
     severity: 'error'
   });
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editedSalary, setEditedSalary] = useState('');
 
+  //success/error/info messages - bottom right prompt
+  const showSnackbar = (message, severity = 'error') => {
+    setSnackbar({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+
+  useEffect(() => {
+    // Check for valid JWT on app load
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const { exp } = jwtDecode(token);
+        if (Date.now() >= exp * 1000) {
+          localStorage.removeItem('token');
+          setLoggedIn(false);
+        } else {
+          setLoggedIn(true);
+        }
+      } catch (e) {
+        localStorage.removeItem('token');
+        setLoggedIn(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loggedIn) {
+      fetchUserCalculations();
+    }
+  }, [loggedIn]);
+
+const fetchUserCalculations = async () => {
+    try {
+      const response = await apiClient.get('/user-calculations');
+      setCalculations(response.data || []);
+    } catch (err) {
+      console.error('Failed to load user calculations:', err);
+      showSnackbar('Could not load your history', 'error');
+    }
+  };
+
+  
   // Fetch cities on component mount -fetches cities from backend
   useEffect(() => {
     const fetchCities = async () => {
@@ -51,14 +102,15 @@ function App() {
     fetchCities();
   }, []);
 
-  //success/error/info messages - bottom right prompt
-  const showSnackbar = (message, severity = 'error') => {
-    setSnackbar({
-      open: true,
-      message,
-      severity
-    });
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setLoggedIn(false);
   };
+
+  if (!loggedIn) {
+  return <LoginPage onLogin={() => setLoggedIn(true)} />;
+}
+
 
   // Calculation handler
   const handleCalculate = async () => {
@@ -68,6 +120,7 @@ function App() {
     setError(null);
 
     try {
+      const timestamp = new Date().toISOString();
       const data = await apiClient.post('/calculate', {
         city: selectedCity,
         salary: parseFloat(salary),
@@ -85,33 +138,21 @@ function App() {
 
       setResult(data);
 
-      setCalculations(prev => [
-        ...prev,
-        {
-          city: selectedCity,
-          salary: salary,
-          rent: data.estimatedMonthlyRent ?? 0,
-          affordability: data.affordability ?? 'Unknown',
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      await apiClient.post('/save-calculation', {
+        city: data.city,
+        country: data.country,
+        salary: parseFloat(salary),
+        estimatedMonthlyRent: data.estimatedMonthlyRent,
+        estimatedMonthlyLivingCost: data.estimatedMonthlyLivingCost,
+        disposableIncome: data.disposableIncome,
+        affordability: data.affordability,
+        timestamp: timestamp,
+      });
 
-      try {
-        await apiClient.post('/save-calculation', {
-          city: data.city,
-          country: data.country,
-          salary: parseFloat(salary),
-          estimatedMonthlyRent: data.estimatedMonthlyRent,
-          estimatedMonthlyLivingCost: data.estimatedMonthlyLivingCost,
-          disposableIncome: data.disposableIncome,
-          affordability: data.affordability,
-          timestamp: new Date().toISOString()
-        });
+      console.log('Calculation saved to DB');
 
-        console.log('Calculation saved to DB');
-      } catch (saveErr) {
-        console.error('Failed to save calculation to DB:', saveErr);
-      }
+      // ✅ Re-fetch all user calculations again to keep synced
+      fetchUserCalculations();
 
 
       showSnackbar('Calculation successful!', 'success');
@@ -148,6 +189,8 @@ function App() {
         timestamp: edited.timestamp, // identifier
         salary: parseFloat(editedSalary),
       });
+      fetchUserCalculations();
+
       showSnackbar('Calculation updated!', 'success');
     } catch (err) {
       console.error('Failed to update calculation:', err);
@@ -156,31 +199,52 @@ function App() {
   };
 
 
-
-
   // Delete calculation handler
-  const handleDeleteCalculation = (index) => {
+  const handleDeleteCalculation = async (index) => {
     const updatedCalculations = [...calculations];
     updatedCalculations.splice(index, 1);
+
     setCalculations(updatedCalculations);
+
+    try {
+      await apiClient.delete('/delete-calculation', {
+        data: { timestamp: calculations[index].timestamp }
+      });
+
+     await fetchUserCalculations();
     showSnackbar('Calculation removed', 'info');
+  }  catch (err) {
+    console.error('Delete failed:', err);
+    showSnackbar('Failed to delete calculation', 'error');
+  }
   };
 
   const handleCloseSnackbar = () => {
     setSnackbar(prev => ({...prev, open: false}));
   };
 
-  //new update
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [editedSalary, setEditedSalary] = useState('');
-
-
   //Render components
   return (
     <div className="App">
       {/* Header Section */}
       <Container maxWidth="lg">
-        <Box sx={{ py: 4, textAlign: 'center' }}>
+        <Box sx={{ 
+          py: 4, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}>
+          
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={handleLogout}
+            sx={{ height: 40, mt: { xs: 2, sm: 0 } }}
+          >
+            Logout
+          </Button>
+
           <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
             AffordCity - Can You Afford Your Dream City?
           </Typography>
@@ -419,7 +483,7 @@ function App() {
                                 InputProps={{ startAdornment: <Typography>$</Typography> }}
                               />
                               <Typography component="span" variant="body2">
-                                Rent: ${calc.rent.toFixed(2)}
+                                Rent: ${calc.estimatedMonthlyRent.toFixed(2)}
                               </Typography>
                             </>
                           ) : (
@@ -429,7 +493,7 @@ function App() {
                               </Typography>
                               {' • '}
                               <Typography component="span" variant="body2">
-                                Rent: ${calc.rent.toFixed(2)}
+                                Rent: ${calc.estimatedMonthlyRent.toFixed(2)}
                               </Typography>
                             </>
                           )}

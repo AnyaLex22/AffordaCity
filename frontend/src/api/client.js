@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'https://affordacity.onrender.com',
+  baseURL: process.env.REACT_APP_API_URL || 'https://affordacity.onrender.com/api',
   timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
@@ -9,13 +9,37 @@ const apiClient = axios.create({
   }
 });
 
-// Add request interceptor
+// GET user calculations
+export const getUserCalculations = () => {
+  return apiClient.get('/user-calculations');
+};
+
+// PUT to update
+export const updateCalculation = (timestamp, salary) => {
+  return apiClient.put('/update-calculation', { timestamp, salary });
+};
+
+// DELETE
+export const deleteCalculation = (timestamp) => {
+  return apiClient.delete('/delete-calculation', {
+    data: { timestamp }
+  });
+};
+
 apiClient.interceptors.request.use(
   config => {
-    // Add /api prefix if needed
-    if (!config.url.startsWith('/api') && !config.url.startsWith('/auth')) {
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    const needsPrefix =
+      config.url &&
+      !config.url.startsWith('/api') &&  // Add this
+      !config.url.startsWith('/auth') &&
+      !config.url.includes('http');
+    if (needsPrefix) {
       config.url = `/api${config.url}`;
     }
+
     return config;
   },
   error => Promise.reject(error)

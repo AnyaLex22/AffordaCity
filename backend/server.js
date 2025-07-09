@@ -5,6 +5,14 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const app = express();
+const User = require('./User');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const requireAuth = require('./auth');
+const authRoutes = require('./authRoutes'); // adjust path
+const userCalculationsRoutes = require('./userCalcu');
+
+app.use('/api', userCalculationsRoutes);
 
 
 app.use(cors({
@@ -19,6 +27,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use('/api', authRoutes);
 
 
 // Connect to MongoDB
@@ -26,6 +35,30 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:lexie222@devclu
 .then(() => console.log('MongoDB Connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
+
+
+// Login
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  console.log('Login attempt:', email);
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    console.log('User not found');
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  console.log('Stored password hash:', user.password);
+  console.log('Password entered:', password);
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    expiresIn: '1h'
+  });
+  res.json({ token });
+});
 
 // City Cost Model
 const CityCost = mongoose.model('CityCost', new mongoose.Schema({
@@ -39,7 +72,7 @@ const CityCost = mongoose.model('CityCost', new mongoose.Schema({
 }));
 
 //update calculations
-app.put('/api/update-calculation', async (req, res) => {
+app.put('/api/update-calculation', requireAuth, async (req, res) => {
   const { timestamp, salary } = req.body;
 
   if (!timestamp || !salary) {
@@ -48,7 +81,7 @@ app.put('/api/update-calculation', async (req, res) => {
 
   try {
     const result = await Calculation.updateOne(
-      { timestamp },
+      { userId: req.userId, timestamp },
       { $set: { salary: parseFloat(salary) } }
     );
 
@@ -63,8 +96,21 @@ app.put('/api/update-calculation', async (req, res) => {
   }
 });
 
+// Get user-specific history
+app.get('/api/user-calculations', requireAuth, async (req, res) => {
+  console.log('Fetching calculations for user ID:', req.userId); 
+  try {
+    const history = await Calculation.find({ userId: req.userId }).sort({ timestamp: -1 });
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load user history' });
+  }
+});
+
+
 //Save calculations - history
 const CalculationSchema =  new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   city: String,
   country: String,
   salary: Number,
@@ -76,6 +122,40 @@ const CalculationSchema =  new mongoose.Schema({
 });
 
 const Calculation = mongoose.model('Calculation', CalculationSchema);
+
+//save calc
+app.post('/api/save-calculation', requireAuth, async (req, res) => {
+  const { city, salary, estimatedMonthlyRent, estimatedMonthlyLivingCost, disposableIncome, affordability, timestamp } = req.body;
+
+  const newCalc = new Calculation({
+    userId: req.userId,
+    city,
+    salary,
+    estimatedMonthlyRent,
+    estimatedMonthlyLivingCost,
+    disposableIncome,
+    affordability,
+    timestamp
+  });
+
+  await newCalc.save();
+  res.status(201).json({ message: 'Calculation saved' });
+});
+
+//delete calculations
+app.delete('/api/delete-calculation', requireAuth, async (req, res) => {
+  const { timestamp } = req.body;
+
+  try {
+    const deleted = await Calculation.deleteOne({ userId: req.userId, timestamp });
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ message: 'Calculation not found' });
+    }
+    res.json({ message: 'Calculation deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete calculation' });
+  }
+});
 
 
 // Add this before your routes in server.js
@@ -131,30 +211,6 @@ app.post('/api/cities', async (req, res) => {
   }
 });
 
-//Save calculations - history
-app.post('/api/save-calculation', async (req, res) => {
-  try {
-    const { city, salary, estimatedMonthlyRent,
-      estimatedMonthlyLivingCost, disposableIncome, affordability, timestamp } = req.body;
-    if (!city || !salary || !estimatedMonthlyRent || !estimatedMonthlyLivingCost || disposableIncome === undefined ||!affordability || !timestamp) {
-      return res.status(400).json({ message: 'Missing fields' });
-    }
-    const newCalc = new Calculation({
-      city,
-      salary,
-      estimatedMonthlyRent,
-      estimatedMonthlyLivingCost,
-      disposableIncome,
-      affordability,
-      timestamp
-    });
-    await newCalc.save();
-    res.status(201).json({ message: 'Calculation saved' });
-  } catch (err) {
-    console.error('Failed to save calculation::', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 
 //external data fetch
@@ -252,16 +308,7 @@ app.post('/api/calculate', async (req, res) => {
   }
 });
 
-//history
-app.get('/api/calculations', async (req, res) => {
-  try {
-    const history = await Calculation.find().sort({ timestamp: -1 });
-    res.json(history);
-  } catch (err) {
-    console.error('Error fetching calculation history:', err);
-    res.status(500).json({ message: 'Failed to load history' });
-  }
-});
+
 
 
 // Start server
