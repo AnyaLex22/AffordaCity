@@ -8,9 +8,11 @@ const app = express();
 const User = require('./User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const requireAuth = require('./auth');
-const authRoutes = require('./authRoutes'); // adjust path
-const userCalculationsRoutes = require('./userCalc');
+const requireAuth = require('./middleware/auth');
+const authRoutes = require('./routes/authRoutes'); 
+const calculationsRoutes = require('./routes/calculationsRoutes');
+const Calculation = require('./models/Calculations'); 
+
 
 
 app.use(cors({
@@ -27,15 +29,15 @@ app.use(cors({
 app.options('*', cors());
 
 app.use(express.json());
-app.use('/api', authRoutes);
-app.use('/api', userCalculationsRoutes);
+
+app.use('/api', authRoutes); //register/login
+app.use('/api', calculationsRoutes);
 
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:lexie222@devcluster.hiv28jk.mongodb.net/cityCostCalculator' )
 .then(() => console.log('MongoDB Connected'))
 .catch(err => console.error('MongoDB connection error:', err));
-
 
 
 // Login
@@ -97,23 +99,6 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
   }
 });
 
-
-
-
-//Save calculations - history
-const CalculationSchema =  new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  city: String,
-  country: String,
-  salary: Number,
-  estimatedMonthlyRent: Number,
-  estimatedMonthlyLivingCost: Number,
-  disposableIncome: Number,
-  affordability: String,
-  timestamp: { type: Date, default: Date.now }
-});
-
-const Calculation = mongoose.model('Calculation', CalculationSchema);
 
 //save calc
 app.post('/api/save-calculation', requireAuth, async (req, res) => {

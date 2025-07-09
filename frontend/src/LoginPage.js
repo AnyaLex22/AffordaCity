@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 export default function LoginPage({ onLogin }) {
-   const [isRegister, setIsRegister] = useState(false); // Toggle between login/register
+  const [isRegister, setIsRegister] = useState(false); // Toggle between login/register
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState(''); // For registration only

@@ -1,0 +1,19 @@
+// routes/calculationsRoutes.js
+const express = require('express');
+const Calculation = require('../models/Calculations'); // adjust path
+const auth = require('../middleware/auth');
+
+const router = express.Router();
+
+router.get('/user-calculations', auth, async (req, res) => {
+  try {
+    console.log('✅ Fetching calculations for user:', req.userId);
+    const calculations = await Calculation.find({ userId: req.userId });
+    res.json(calculations);
+  } catch (err) {
+    console.error('Error fetching calculations:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+module.exports = router;

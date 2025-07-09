@@ -62,10 +62,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (loggedIn) {
-      fetchUserCalculations();
-    }
-  }, [loggedIn]);
+  const token = localStorage.getItem('token');
+  if (loggedIn && token) {
+    fetchUserCalculations();
+  }
+}, [loggedIn]);
+
 
 const fetchUserCalculations = async () => {
   const token = localStorage.getItem('token');
