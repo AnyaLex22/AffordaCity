@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import axios from './client';
 
 export default function LoginPage({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false); // Toggle between login/register

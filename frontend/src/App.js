@@ -77,7 +77,10 @@ const fetchUserCalculations = async () => {
   }
     try {
       const response = await apiClient.get('/user-calculations');
-      setCalculations(response.data || []);
+      setCalculations(response || []);
+      console.log("📦 Raw /user-calculations response:", response);
+      console.log("📦 Parsed .data:", response.data);
+      console.log("📦 Final calculations:", calculations);
     } catch (err) {
       console.error('Failed to load user calculations:', err);
       showSnackbar('Could not load your history', 'error');
