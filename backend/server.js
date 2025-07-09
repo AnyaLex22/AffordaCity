@@ -12,8 +12,6 @@ const requireAuth = require('./auth');
 const authRoutes = require('./authRoutes'); // adjust path
 const userCalculationsRoutes = require('./userCalc');
 
-app.use('/api', userCalculationsRoutes);
-
 
 app.use(cors({
   origin: [
@@ -26,8 +24,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 
+app.options('*', cors());
+
 app.use(express.json());
 app.use('/api', authRoutes);
+app.use('/api', userCalculationsRoutes);
 
 
 // Connect to MongoDB
