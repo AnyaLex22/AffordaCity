@@ -96,16 +96,7 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
   }
 });
 
-// Get user-specific history
-app.get('/api/user-calculations', requireAuth, async (req, res) => {
-  console.log('Fetching calculations for user ID:', req.userId); 
-  try {
-    const history = await Calculation.find({ userId: req.userId }).sort({ timestamp: -1 });
-    res.json(history);
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to load user history' });
-  }
-});
+
 
 
 //Save calculations - history
