@@ -29,15 +29,33 @@ export default function LoginPage({ onLogin }) {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: 'auto', padding: 20 }}>
-      <h2>{isRegister ? 'Register New Account' : 'Login'}</h2>
+    <div style={{
+      maxWidth: 400,
+      margin: '5% auto',
+      padding: 30,
+      backgroundColor: '#f5f7fa',
+      borderRadius: 12,
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+
+      <h2 style={{ textAlign: 'center', marginBottom: 20 }}>
+        {isRegister ? 'Register New Account' : 'Login'}
+      </h2>
 
       {isRegister && (
         <input
           placeholder="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          style={{ display: 'block', marginBottom: 10, width: '100%' }}
+          style={{
+            display: 'block',
+            marginBottom: 12,
+            width: '100%',
+            padding: 10,
+            border: '1px solid #ccc',
+            borderRadius: 6
+          }}
         />
       )}
 
@@ -45,7 +63,14 @@ export default function LoginPage({ onLogin }) {
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        style={{ display: 'block', marginBottom: 10, width: '100%' }}
+         style={{
+          display: 'block',
+          marginBottom: 12,
+          width: '100%',
+          padding: 10,
+          border: '1px solid #ccc',
+          borderRadius: 6
+        }}
       />
 
       <input
@@ -53,23 +78,65 @@ export default function LoginPage({ onLogin }) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        style={{ display: 'block', marginBottom: 20, width: '100%' }}
+        style={{
+          display: 'block',
+          marginBottom: 20,
+          width: '100%',
+          padding: 10,
+          border: '1px solid #ccc',
+          borderRadius: 6
+        }}
       />
 
-      <button onClick={isRegister ? register : login} style={{ marginBottom: 10 }}>
+      <button 
+        onClick={isRegister ? register : login} 
+        style={{
+          width: '100%',
+          padding: 12,
+          marginBottom: 15,
+          backgroundColor: '#1976d2',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          fontSize: 16,
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}>
         {isRegister ? 'Register' : 'Log In'}
       </button>
 
-      <div>
+      <div style={{ textAlign: 'center', fontSize: 14 }}>
         {isRegister ? (
           <p>
             Already have an account?{' '}
-            <button onClick={() => setIsRegister(false)}>Login</button>
+            <button 
+            onClick={() => setIsRegister(false)}
+            style={{
+                background: 'none',
+                color: '#1976d2',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0,
+                fontSize: 14
+              }}
+              >Login</button>
           </p>
         ) : (
           <p>
             New user?{' '}
-            <button onClick={() => setIsRegister(true)}>Register here</button>
+            <button 
+            onClick={() => setIsRegister(true)}
+            style={{
+                background: 'none',
+                color: '#1976d2',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0,
+                fontSize: 14
+              }}
+              >Register here</button>
           </p>
         )}
       </div>

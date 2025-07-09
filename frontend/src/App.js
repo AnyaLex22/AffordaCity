@@ -527,6 +527,21 @@ const fetchUserCalculations = async () => {
                         color="primary" 
                         onClick={() => handleEditCalculation(index)}
                         disabled={isLoading.calculation}
+                        sx={{
+                          backgroundColor: '#1976d2',
+                          color: '#fff',
+                          borderRadius: 2,
+                          px: 2,
+                          py: 0.5,
+                          ml: 1,
+                          '&:hover': {
+                            backgroundColor: '#1565c0',
+                          },
+                          '& .MuiTypography-root': {
+                            fontWeight: 'bold',
+                            fontSize: '0.8rem'
+                          }
+                        }}
                       >
                         <Typography variant="button">Edit</Typography>
                       </IconButton>
