@@ -29,7 +29,11 @@ export const deleteCalculation = (timestamp) => {
 apiClient.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No token found in localStorage when sending request to:', config.url);
+    }
 
     const needsPrefix =
       config.url &&

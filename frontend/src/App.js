@@ -68,6 +68,11 @@ function App() {
   }, [loggedIn]);
 
 const fetchUserCalculations = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    console.warn('Token missing in fetchUserCalculations');
+    return;
+  }
     try {
       const response = await apiClient.get('/user-calculations');
       setCalculations(response.data || []);
@@ -110,6 +115,7 @@ const fetchUserCalculations = async () => {
   if (!loggedIn) {
   return <LoginPage onLogin={() => setLoggedIn(true)} />;
 }
+
 
 
   // Calculation handler
