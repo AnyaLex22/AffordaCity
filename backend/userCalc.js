@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const verifyToken = require('./auth');
-const Calculation = require('.server');
+const Calculation = require('./server');
 
 // GET /api/user-calculations
 router.get('/user-calculations', verifyToken, async (req, res) => {
