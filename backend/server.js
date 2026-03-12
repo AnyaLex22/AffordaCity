@@ -90,7 +90,7 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
         const apiResponse = await axios.get(
           'https://cities-cost-of-living-and-average-prices-api.p.rapidapi.com/city',
           {
-            params: {city},
+            params: {city: calc.city},
             headers: {
               'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
               'X-RapidAPI-Host': 'cities-cost-of-living-and-average-prices-api.p.rapidapi.com'
@@ -98,9 +98,9 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
           }
         );
         costData = await CityCost.findOneAndUpdate(
-          {city},
+          {city: calc.city},
           {
-            city,
+            city: calc.city,
             country: apiResponse.data.country,
             costofLivingIndex: apiResponse.data.cost_of_living_index,
             rentIndex: apiResponse.data.rent_index,
@@ -118,8 +118,8 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
     }
 
     // Recalculate
-    const estimatedMonthlyRent = (cityData.rentIndex / 100) * 2000;
-    const estimatedMonthlyLivingCost = (cityData.costOfLivingIndex / 100) * 3000;
+    const estimatedMonthlyRent = (costData.rentIndex / 100) * 2000;
+    const estimatedMonthlyLivingCost = (costData.costOfLivingIndex / 100) * 3000;
     const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
     const affordability = disposableIncome > 0 ? 'Affordable' : 'Not Affordable';
 
