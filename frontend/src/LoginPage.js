@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from './client';
+import apiClient from './api/client';
 
 export default function LoginPage({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false); // Toggle between login/register
@@ -9,8 +9,9 @@ export default function LoginPage({ onLogin }) {
 
   const login = async () => {
     try {
-      const res = await axios.post('/api/login', { email, password });
-      localStorage.setItem('token', res.data.token);
+      const res = await apiClient.post('/login', { email, password });
+      console.log('Login response:', res);
+      localStorage.setItem('token', res.token);
       onLogin();
     } catch (err) {
       alert('Login failed');
@@ -19,7 +20,7 @@ export default function LoginPage({ onLogin }) {
 
   const register = async () => {
     try {
-      const res = await axios.post('/api/register', { name, email, password });
+      const res = await apiClient.post('/register', { name, email, password });
       alert('Registration successful. You can now log in.');
       setIsRegister(false); // Switch to login mode
     } catch (err) {

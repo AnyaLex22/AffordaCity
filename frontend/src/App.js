@@ -13,6 +13,12 @@ import { jwtDecode } from 'jwt-decode';
 function App() {
   //login
   const [loggedIn, setLoggedIn] = useState(false);
+
+  //New state - country,city decalrations
+  const [countries, setCountries] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [filteredCities, setFilteredCities] = useState([]);
+
   // State declarations
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
@@ -76,11 +82,8 @@ const fetchUserCalculations = async () => {
     return;
   }
     try {
-      const response = await apiClient.get('/user-calculations');
-      setCalculations(response || []);
-      console.log("📦 Raw /user-calculations response:", response);
-      console.log("📦 Parsed .data:", response.data);
-      console.log("📦 Final calculations:", calculations);
+      const calculations = await apiClient.get('/user-calculations');
+      setCalculations(Array.isArray(calculations) ? calculations : []);
     } catch (err) {
       console.error('Failed to load user calculations:', err);
       showSnackbar('Could not load your history', 'error');
@@ -92,23 +95,24 @@ const fetchUserCalculations = async () => {
   useEffect(() => {
     const fetchCities = async () => {
       setIsLoading(prev => ({...prev, cities: true}));
-      setError(null);
       try {
-        const response = await apiClient.get('/cities');
-        setCities(response.cities || []);
-        console.log('API Response:', response);
+        const response = await apiClient.get('/countries');
+        setCountries(Array.isArray(response) ? response : []);
 
-        //setCities(Array.isArray(response.data) ? response.data : []);
-        //const citiesData = response?.data?.cities || response?.cities || [];
-        //setCities(citiesData);
+        //response is array of country strings or obhjects - log it to see shape
+        console.log('Countries response:', response);
+        const countryList = Array.isArray(response) 
+          ? response.map(c => typeof c === 'string' ? c : c.country || c.name).filter(Boolean).sort() 
+          : [];
+
+        setCountries(countryList);
       } catch (err) {
-        console.error('Failed to fetch:', err.response); 
-        setError(err.message);
-        showSnackbar(err.message, 'error');
+        showSnackbar('Failed to load countries', 'error');
       } finally {
         setIsLoading(prev => ({...prev, cities: false}));
       }
     };
+
     fetchCities();
   }, []);
 
@@ -121,6 +125,20 @@ const fetchUserCalculations = async () => {
   return <LoginPage onLogin={() => setLoggedIn(true)} />;
 }
 
+  //Handler for when country is selected
+  const handleCountryChange = async (e) => {
+    const country = e.target.value;
+    setSelectedCountry(country);
+    setSelectedCity('');
+    setFilteredCities([]);
+
+    try {
+      const response = await apiClient.get(`/cities-by-country?country=${encodeURIComponent(country)}`);
+      setFilteredCities(Array.isArray(response) ? response: []);
+    } catch (err) {
+      showSnackbar('Failed to load cities for this country', 'error');
+    }
+  };
 
 
   // Calculation handler
@@ -132,8 +150,10 @@ const fetchUserCalculations = async () => {
 
     try {
       const timestamp = new Date().toISOString();
+      console.log('Calculating for city:', selectedCity, 'salary:', salary);
       const data = await apiClient.post('/calculate', {
         city: selectedCity,
+        country: selectedCountry,
         salary: parseFloat(salary),
       });
 
@@ -212,17 +232,14 @@ const fetchUserCalculations = async () => {
 
   // Delete calculation handler
   const handleDeleteCalculation = async (index) => {
-    const updatedCalculations = [...calculations];
-    updatedCalculations.splice(index, 1);
-
-    setCalculations(updatedCalculations);
+    const timestamp = calculations[index].timestamp; //capture BEFORE any state change
 
     try {
       await apiClient.delete('/delete-calculation', {
-        data: { timestamp: calculations[index].timestamp }
+        data: { timestamp }
       });
 
-     await fetchUserCalculations();
+     await fetchUserCalculations(); //let DB be source of truth
     showSnackbar('Calculation removed', 'info');
   }  catch (err) {
     console.error('Delete failed:', err);
@@ -301,41 +318,44 @@ const fetchUserCalculations = async () => {
           <Box component="form" sx={{ mt: 3 }}>
             <Grid container spacing={3}>
               
-              <Grid item xs={12} sm={6}>
+              {/*Country dropdown*/}
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth sx={{ minWidth: 200 }}>
-                  <InputLabel id="select-city-label">Select Location</InputLabel>
+                  <InputLabel id="select-city-label">Select Country</InputLabel>
                   <Select
-                    labelId="select-city-label"
-                    id="select-city"
-                    label="Select Location"
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
+                    value={selectedCountry}
+                    label="Select Country"
+                    onChange={handleCountryChange}
                     disabled={isLoading.cities}
                   >
-                    {isLoading.cities ? (
-                      <MenuItem disabled>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <CircularProgress size={20} sx={{ mr: 2 }} />
-                          Loading cities...
-                        </Box>
+                    {countries.map((country, index) => (
+                      <MenuItem key={`${country}-${index}`} value={country}>
+                        {country}
                       </MenuItem>
-                    ) : cities.length > 0 ? (
-                      cities.map((city) => (
-                        <MenuItem key={city._id} value={city.city}>
-                          {`${city.city}, ${city.country}`}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem disabled>
-                        No cities available
-                      </MenuItem>
-                    )}
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>
 
+              {/*City Dropdown - only shows after country is selected*/}
+              <Grid size={{ xs: 12, sm: 6}}>
+                <FormControl fullWidth disabled={!selectedCountry}>
+                  <InputLabel>Select City</InputLabel>
+                  <Select
+                    value={selectedCity}
+                    label="Select City"
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                  >
+                    {filteredCities.map((city, index) => (
+                      <MenuItem key={`${city}-${index}`} value={city}>
+                        {city}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Annual Salary"

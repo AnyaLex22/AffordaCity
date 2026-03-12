@@ -11,7 +11,8 @@ module.exports = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.userID = decoded.userID;
+    
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     console.log('✅ Auth Middleware - Token OK - userId:', payload.userId); 
     req.userId = payload.userId;

@@ -12,6 +12,7 @@ const requireAuth = require('./middleware/auth');
 const authRoutes = require('./routes/authRoutes'); 
 const calculationsRoutes = require('./routes/calculationsRoutes');
 const Calculation = require('./models/Calculations'); 
+const CityCost = require('./models/CityCost');
 
 
 
@@ -30,51 +31,39 @@ app.options('*', cors());
 
 app.use(express.json());
 
+//Request logger - must be BEFORE all routes
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
+
 app.use('/api', authRoutes); //register/login
 app.use('/api', calculationsRoutes);
 
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://lexie:lexie222@devcluster.hiv28jk.mongodb.net/cityCostCalculator' )
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set in .env');
+  process.exit(1);
+}
 
-
-// Login
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  console.log('Login attempt:', email);
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    console.log('User not found');
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  console.log('Stored password hash:', user.password);
-  console.log('Password entered:', password);
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
-
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    expiresIn: '1h'
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
   });
-  res.json({ token });
-});
 
-// City Cost Model
-const CityCost = mongoose.model('CityCost', new mongoose.Schema({
-  city: String,
-  country: String,
-  costOfLivingIndex: Number,
-  rentIndex: Number,
-  groceriesIndex: Number,
-  restaurantIndex: Number,
-  lastUpdated: { type: Date, default: Date.now }
-}));
+// Login -handled in authRoutes.js
 
-//update calculations
+  //const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    //expiresIn: '1h'
+  //});
+  //res.json({ token });
+
+
+// update calculations
 app.put('/api/update-calculation', requireAuth, async (req, res) => {
   const { timestamp, salary } = req.body;
 
@@ -83,9 +72,67 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
   }
 
   try {
+    const newSalary = parseFloat(salary);
+    const monthlySalary = newSalary / 12;
+
+    // Re-fetch calculation
+    const calc = await Calculation.findOne({ userId: req.userId, timestamp });
+    if (!calc) {
+      return res.status(404).json({ error: 'Calculation not found' });
+    }
+
+    // Get city data
+    let costData = await CityCost.findOne({city: calc.city});
+
+    if (!costData) {
+      //Fetch from RapidAPI and cache it
+      try{
+        const apiResponse = await axios.get(
+          'https://cities-cost-of-living-and-average-prices-api.p.rapidapi.com/city',
+          {
+            params: {city},
+            headers: {
+              'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
+              'X-RapidAPI-Host': 'cities-cost-of-living-and-average-prices-api.p.rapidapi.com'
+            }
+          }
+        );
+        costData = await CityCost.findOneAndUpdate(
+          {city},
+          {
+            city,
+            country: apiResponse.data.country,
+            costofLivingIndex: apiResponse.data.cost_of_living_index,
+            rentIndex: apiResponse.data.rent_index,
+            groceriesIndex: apiResponse.data.groceries_index,
+            restaurantIndex: apiResponse.data.restaurant_price_index,
+          },
+          {upsert: true, new: true}
+        );
+      } catch (apiErr) {
+        console.error('RapidAPI fetch failed:', apiErr.message);
+        console.error('RapidAPI status:', apiErr.response?.status);
+        console.error('RapiAPI response data:', JSON.stringify(apiErr.response?.data));
+        return res.status(404).json({message: 'City cost data not available'});
+      }
+    }
+
+    // Recalculate
+    const estimatedMonthlyRent = (cityData.rentIndex / 100) * 2000;
+    const estimatedMonthlyLivingCost = (cityData.costOfLivingIndex / 100) * 3000;
+    const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
+    const affordability = disposableIncome > 0 ? 'Affordable' : 'Not Affordable';
+
+    // Update database
     const result = await Calculation.updateOne(
       { userId: req.userId, timestamp },
-      { $set: { salary: parseFloat(salary) } }
+      {
+        $set: {
+          salary: newSalary,
+          disposableIncome,
+          affordability
+        }
+      }
     );
 
     if (result.modifiedCount === 0) {
@@ -93,6 +140,7 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
     }
 
     res.json({ success: true });
+
   } catch (err) {
     console.error('Update error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -135,26 +183,28 @@ app.delete('/api/delete-calculation', requireAuth, async (req, res) => {
 });
 
 
-// Add this before your routes in server.js
-app.use((req, res, next) => {
-  console.log(`Incoming ${req.method} request to ${req.path}`);
-  next();
-});
-
 // Routes
 //API returns list of all countries & cities
-app.get('/api/all-cities', async (req, res) => {
+//1. Get all countries pulled from DB (already seeded)
+app.get('/api/countries', async (req, res) => {
   try {
-    const response = await axios.get('https://countriesnow.space/api/v0.1/countries');
-    const allCities = response.data.data.flatMap(country => 
-      country.cities.map(city => ({
-        city,
-        country: country.country
-      }))
-    );
-    res.json(allCities);
+    const countries = await CityCost.distinct('country');
+    res.json(countries.sort());
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Failed to fetch countries' });
+  }
+});
+
+//2. Get cities by country pullled from DB
+app.get('/api/cities-by-country', async (req, res) => {
+  const {country} = req.query;
+  if (!country) return res.status(400).json({ message: 'Country is required'});
+
+  try {
+    const cities = await CityCost.distinct('city', {country});
+    res.json(cities.sort());
+  } catch (err) {
+    res.status(500).json({message: 'Failed to fetch cities'});
   }
 });
 
@@ -187,7 +237,6 @@ app.post('/api/cities', async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 });
-
 
 
 //external data fetch
@@ -253,21 +302,27 @@ app.get('/api/cost/:city', async (req, res) => {
   }
 });
 
+
 //afford cost calculator
 app.post('/api/calculate', async (req, res) => {
+  const {city, country, salary} = req.body;
+
+  if (!city || !country || !salary) {
+    return res.status(400).json({message: 'City, country and salary are required'});
+  }
+
   try {
-    const { city, salary } = req.body;
-    
-    const costData = await CityCost.findOne({ city });
+    //Check DB cache first
+    const costData = await CityCost.findOne({ city, country });
+
     if (!costData) {
-      return res.status(404).json({ message: 'City data not found' });
+      return re.status(404).json({message: `No data found for ${city}, ${country}`});
     }
 
     // Calculations
     const monthlySalary = salary / 12;
     const estimatedMonthlyRent = (costData.rentIndex / 100) * 2000; // Approximation
     const estimatedMonthlyLivingCost = (costData.costOfLivingIndex / 100) * 3000; // Approximation
-    
     const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
     const affordability = disposableIncome > 0 ? 'affordable' : 'not affordable';
 
@@ -281,6 +336,7 @@ app.post('/api/calculate', async (req, res) => {
       affordability
     });
   } catch (err) {
+    console.error('Calculate error:', err.message);
     res.status(500).json({ message: err.message });
   }
 });
