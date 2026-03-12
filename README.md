@@ -193,3 +193,6 @@ affordacity/
 - **Single-user token expiry** — JWT tokens expire after 1 hour. A refresh token flow could improve the user experience.
 
 ---
+
+License
+This project is licensed under the MIT License.
