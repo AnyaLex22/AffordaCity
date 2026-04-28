@@ -1,604 +1,166 @@
-import React, { useState, useEffect } from 'react';
-import LoginPage from './LoginPage';
-import {Container, Typography, Box, Divider, Grid, FormControl, InputLabel, 
-  Select, MenuItem, TextField, Button, List, ListItem, ListItemText, IconButton, 
-  CircularProgress, Chip, Alert, Snackbar
-} from '@mui/material';
+/* In App.css, replace the content with: */
 
-import DeleteIcon from '@mui/icons-material/Delete';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import apiClient from './api/client';
-import { jwtDecode } from 'jwt-decode';
-
-function App() {
-  //login
-  const [loggedIn, setLoggedIn] = useState(false);
-
-  //New state - country,city decalrations
-  const [countries, setCountries] = useState([]);
-  const [selectedCountry, setSelectedCountry] = useState('');
-  const [filteredCities, setFilteredCities] = useState([]);
-
-  // State declarations
-  const [cities, setCities] = useState([]);
-  const [selectedCity, setSelectedCity] = useState('');
-  const [salary, setSalary] = useState('');
-  const [result, setResult] = useState(null);
-  const [calculations, setCalculations] = useState([]);
-  const [isLoading, setIsLoading] = useState({
-    cities: false,
-    calculation: false
-  });
-  const [error, setError] = useState(null);
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'error'
-  });
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [editedSalary, setEditedSalary] = useState('');
-
-  //success/error/info messages - bottom right prompt
-  const showSnackbar = (message, severity = 'error') => {
-    setSnackbar({
-      open: true,
-      message,
-      severity
-    });
-  };
-
-
-  useEffect(() => {
-    // Check for valid JWT on app load
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const { exp } = jwtDecode(token);
-        if (Date.now() >= exp * 1000) {
-          localStorage.removeItem('token');
-          setLoggedIn(false);
-        } else {
-          setLoggedIn(true);
-        }
-      } catch (e) {
-        localStorage.removeItem('token');
-        setLoggedIn(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-  const token = localStorage.getItem('token');
-  if (loggedIn && token) {
-    fetchUserCalculations();
-  }
-}, [loggedIn]);
-
-
-const fetchUserCalculations = async () => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.warn('Token missing in fetchUserCalculations');
-    return;
-  }
-    try {
-      const calculations = await apiClient.get('/user-calculations');
-      setCalculations(Array.isArray(calculations) ? calculations : []);
-    } catch (err) {
-      console.error('Failed to load user calculations:', err);
-      showSnackbar('Could not load your history', 'error');
-    }
-  };
-
-  
-  // Fetch cities on component mount -fetches cities from backend
-  useEffect(() => {
-    const fetchCities = async () => {
-      setIsLoading(prev => ({...prev, cities: true}));
-      try {
-        const response = await apiClient.get('/countries');
-        setCountries(Array.isArray(response) ? response : []);
-
-        //response is array of country strings or obhjects - log it to see shape
-        console.log('Countries response:', response);
-        const countryList = Array.isArray(response) 
-          ? response.map(c => typeof c === 'string' ? c : c.country || c.name).filter(Boolean).sort() 
-          : [];
-
-        setCountries(countryList);
-      } catch (err) {
-        showSnackbar('Failed to load countries', 'error');
-      } finally {
-        setIsLoading(prev => ({...prev, cities: false}));
-      }
-    };
-
-    fetchCities();
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setLoggedIn(false);
-  };
-
-  if (!loggedIn) {
-  return <LoginPage onLogin={() => setLoggedIn(true)} />;
+.App {
+  text-align: center;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+  padding: 2rem;
 }
 
-  //Handler for when country is selected
-  const handleCountryChange = async (e) => {
-    const country = e.target.value;
-    setSelectedCountry(country);
-    setSelectedCity('');
-    setFilteredCities([]);
-
-    try {
-      const response = await apiClient.get(`/cities-by-country?country=${encodeURIComponent(country)}`);
-      setFilteredCities(Array.isArray(response) ? response: []);
-    } catch (err) {
-      showSnackbar('Failed to load cities for this country', 'error');
-    }
-  };
-
-
-  // Calculation handler
-  const handleCalculate = async () => {
-    if (!selectedCity || !salary) return;
-
-    setIsLoading(prev => ({ ...prev, calculation: true }));
-    setError(null);
-
-    try {
-      const timestamp = new Date().toISOString();
-      console.log('Calculating for city:', selectedCity, 'salary:', salary);
-      const data = await apiClient.post('/calculate', {
-        city: selectedCity,
-        country: selectedCountry,
-        salary: parseFloat(salary),
-      });
-
-      console.log('Received data:', data);
-
-      if (
-        !data ||
-        typeof data.estimatedMonthlyRent !== 'number' ||
-        typeof data.disposableIncome !== 'number'
-      ) {
-        throw new Error('Incomplete data from the server.');
-      }
-
-      setResult(data);
-
-      await apiClient.post('/save-calculation', {
-        city: data.city,
-        country: data.country,
-        salary: parseFloat(salary),
-        estimatedMonthlyRent: data.estimatedMonthlyRent,
-        estimatedMonthlyLivingCost: data.estimatedMonthlyLivingCost,
-        disposableIncome: data.disposableIncome,
-        affordability: data.affordability,
-        timestamp: timestamp,
-      });
-
-      console.log('Calculation saved to DB');
-
-      // ✅ Re-fetch all user calculations again to keep synced
-      fetchUserCalculations();
-
-
-      showSnackbar('Calculation successful!', 'success');
-    } catch (err) {
-      console.error('Calculation failed:', err);
-      setError(err.message);
-      showSnackbar(err.message, 'error');
-    } finally {
-      setIsLoading(prev => ({ ...prev, calculation: false }));
-    }
-  };
-
-  //edit handler
-  const handleEditCalculation = (index) => {
-    setEditingIndex(index);
-    setEditedSalary(calculations[index].salary);
-  };
-
-  //save edited to db
-  const handleSaveEditedCalculation = async () => {
-    if (editingIndex === null || !editedSalary || editedSalary <= 0) return;
-
-    const updated = [...calculations];
-    const edited = { ...updated[editingIndex], salary: editedSalary };
-
-    // Optionally, re-calculate affordability here if needed
-    updated[editingIndex] = edited;
-    setCalculations(updated);
-    setEditingIndex(null);
-    setEditedSalary('');
-
-    try {
-      await apiClient.put('/update-calculation', {
-        timestamp: edited.timestamp, // identifier
-        salary: parseFloat(editedSalary),
-      });
-      fetchUserCalculations();
-
-      showSnackbar('Calculation updated!', 'success');
-    } catch (err) {
-      console.error('Failed to update calculation:', err);
-      showSnackbar('Failed to update calculation in DB', 'error');
-    }
-  };
-
-
-  // Delete calculation handler
-  const handleDeleteCalculation = async (index) => {
-    const timestamp = calculations[index].timestamp; //capture BEFORE any state change
-
-    try {
-      await apiClient.delete('/delete-calculation', {
-        data: { timestamp }
-      });
-
-     await fetchUserCalculations(); //let DB be source of truth
-    showSnackbar('Calculation removed', 'info');
-  }  catch (err) {
-    console.error('Delete failed:', err);
-    showSnackbar('Failed to delete calculation', 'error');
-  }
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar(prev => ({...prev, open: false}));
-  };
-
-  //Render components
-  return (
-    <div className="App">
-      {/* Header Section */}
-      <Container maxWidth="lg">
-        <Box sx={{ 
-          py: 4, 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}>
-          
-          <Button 
-            variant="contained" 
-            color="error" 
-            onClick={handleLogout}
-            sx={{ height: 40, mt: { xs: 2, sm: 0 } }}
-          >
-            Logout
-          </Button>
-
-          <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
-            AffordCity - Can You Afford Your Dream City?
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            "Compare your salary with real cost of living data from around the world. Calculate if you can afford to live in your dream city with our comprehensive affordability calculator."
-          </Typography>
-        </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        {/* Error Display - if fetching cities/calculating fails, retry button */}
-        {error && (
-          <Alert 
-            severity="error" 
-            sx={{ mb: 3 }}
-            action={
-              <Button 
-                color="inherit" 
-                size="small"
-                startIcon={<RefreshIcon />}
-                onClick={() => window.location.reload()}
-              >
-                Retry
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-
-        {/* Calculator Section */}
-        <Box className="calculator-section" sx={{ 
-          backgroundColor: 'background.paper',
-          borderRadius: 2,
-          boxShadow: 1,
-          p: 4,
-          mb: 4
-        }}>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-            Cost Calculator
-          </Typography>
-          
-          <Box component="form" sx={{ mt: 3 }}>
-            <Grid container spacing={3}>
-              
-              {/*Country dropdown*/}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth sx={{ minWidth: 200 }}>
-                  <InputLabel id="select-city-label">Select Country</InputLabel>
-                  <Select
-                    value={selectedCountry}
-                    label="Select Country"
-                    onChange={handleCountryChange}
-                    disabled={isLoading.cities}
-                  >
-                    {countries.map((country, index) => (
-                      <MenuItem key={`${country}-${index}`} value={country}>
-                        {country}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/*City Dropdown - only shows after country is selected*/}
-              <Grid size={{ xs: 12, sm: 6}}>
-                <FormControl fullWidth disabled={!selectedCountry}>
-                  <InputLabel>Select City</InputLabel>
-                  <Select
-                    value={selectedCity}
-                    label="Select City"
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                  >
-                    {filteredCities.map((city, index) => (
-                      <MenuItem key={`${city}-${index}`} value={city}>
-                        {city}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Annual Salary"
-                  type="number"
-                  value={salary}
-                  onChange={(e) => setSalary(e.target.value)}
-                  disabled={isLoading.calculation}
-                   error={!!(salary && salary <= 0)}
-                  helperText={salary && salary <= 0 ? 'Salary must be positive' : ''}
-                  InputProps={{
-                    startAdornment: '$'
-                  }}
-                />
-              </Grid>
-              
-              <Grid xs={12}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  onClick={handleCalculate}
-                  sx={{ py: 2, mt: 1 }}
-                  disabled={isLoading.calculation || !selectedCity || !salary || (salary && salary <= 0)}
-                  startIcon={isLoading.calculation ? <CircularProgress size={20} color="inherit" /> : null}
-                >
-                  {isLoading.calculation ? 'Calculating...' : 'Calculate Affordability'}
-                </Button>
-              </Grid>
-            </Grid>
-          </Box>
-
-          {/*calculations result*/}
-          {result && (
-            <Box sx={{ 
-              mt: 4, 
-              p: 3, 
-              backgroundColor: 'background.default',
-              borderRadius: 2,
-              borderLeft: `4px solid ${
-                result.affordability.toLowerCase().includes('affordable') 
-                  ? 'success.main' 
-                  : 'error.main'
-              }`
-            }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                Results for {result.city}, {result.country}
-              </Typography>
-              
-              <Grid container spacing={2}>
-                <Grid xs={12}>
-                  <Chip 
-                    label={result.affordability} 
-                    color={result.affordability.toLowerCase().includes('affordable') ? 'success' : 'error'}
-                    sx={{ mb: 2, fontWeight: 600 }}
-                  />
-                </Grid>
-                
-                {[
-                  { label: 'Monthly Salary', value: result.monthlySalary.toFixed(2) },
-                  { label: 'Estimated Rent', value: result.estimatedMonthlyRent.toFixed(2) },
-                  { label: 'Living Costs', value: result.estimatedMonthlyLivingCost.toFixed(2) },
-                  { label: 'Disposable Income', value: result.disposableIncome.toFixed(2), 
-                    color: result.disposableIncome > 0 ? 'success.main' : 'error.main' }
-                ].map((item, index) => (
-                  <Grid xs={12} sm={6} key={index}>
-                    <Box sx={{ p: 2, backgroundColor: 'background.paper', borderRadius: 1 }}>
-                      <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                      <Typography variant="h6" fontWeight="bold" color={item.color || 'text.primary'}>
-                        ${item.value}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-          )}
-        </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        {/*Saved Calculations Section */}
-        <Box className="saved-calculations" sx={{ 
-          backgroundColor: 'background.paper',
-          borderRadius: 2,
-          boxShadow: 1,
-          p: 4,
-          mb: 4
-        }}>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-            My Saved Calculations
-          </Typography>
-          
-          {calculations.length === 0 ? (
-            <Box sx={{ 
-              textAlign: 'center', 
-              p: 4,
-              backgroundColor: 'background.default',
-              borderRadius: 2
-            }}>
-              <Typography variant="body1" color="text.secondary">
-                No calculations saved yet
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Your calculations will appear here after you run them
-              </Typography>
-            </Box>
-          ) : (
-            <List sx={{ width: '100%', mt: 2 }}>
-              {calculations
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                .map((calc, index) => (
-                  <ListItem 
-                    key={index} 
-                    sx={{
-                      p: 3,
-                      mb: 2,
-                      backgroundColor: 'background.default',
-                      borderRadius: 2,
-                      borderLeft: `4px solid ${
-                        calc.affordability.toLowerCase().includes('affordable') 
-                          ? 'success.main' 
-                          : 'error.main'
-                      }`,
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 1
-                      }
-                    }}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
-                            {calc.city}
-                          </Typography>
-                          <Chip 
-                            label={calc.affordability} 
-                            size="small"
-                            color={calc.affordability.toLowerCase().includes('affordable') ? 'success' : 'error'}
-                          />
-                        </Box>
-                      }
-                      secondary={
-                        <>
-                          {editingIndex === index ? (
-                            <>
-                              <TextField
-                                type="number"
-                                size="small"
-                                value={editedSalary}
-                                onChange={(e) => setEditedSalary(e.target.value)}
-                                sx={{ width: 120, mr: 2 }}
-                                error={!!(editedSalary && editedSalary <= 0)}
-                                helperText={editedSalary && editedSalary <= 0 ? 'Invalid' : ''}
-                                InputProps={{ startAdornment: <Typography>$</Typography> }}
-                              />
-                              <Typography component="span" variant="body2">
-                                Rent: ${calc.estimatedMonthlyRent.toFixed(2)}
-                              </Typography>
-                            </>
-                          ) : (
-                            <>
-                              <Typography component="span" variant="body2">
-                                Salary: ${calc.salary}
-                              </Typography>
-                              {' • '}
-                              <Typography component="span" variant="body2">
-                                Rent: ${calc.estimatedMonthlyRent.toFixed(2)}
-                              </Typography>
-                            </>
-                          )}
-                        </>
-                      }
-
-                    />
-                    {editingIndex === index ? (
-                      <IconButton 
-                        edge="end" 
-                        color="primary" 
-                        onClick={handleSaveEditedCalculation}
-                        disabled={isLoading.calculation}
-                      >
-                        <Typography variant="button">Save</Typography>
-                      </IconButton>
-                    ) : (
-                      <IconButton 
-                        edge="end" 
-                        color="primary" 
-                        onClick={() => handleEditCalculation(index)}
-                        disabled={isLoading.calculation}
-                        sx={{
-                          backgroundColor: '#1976d2',
-                          color: '#fff',
-                          borderRadius: 2,
-                          px: 2,
-                          py: 0.5,
-                          ml: 1,
-                          '&:hover': {
-                            backgroundColor: '#1565c0',
-                          },
-                          '& .MuiTypography-root': {
-                            fontWeight: 'bold',
-                            fontSize: '0.8rem'
-                          }
-                        }}
-                      >
-                        <Typography variant="button">Edit</Typography>
-                      </IconButton>
-                    )}
-
-                    <IconButton 
-                      edge="end" 
-                      onClick={() => handleDeleteCalculation(index)}
-                      disabled={isLoading.calculation}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItem>
-                ))}
-            </List>
-          )}
-        </Box>
-      </Container>
-
-      {/* Notifications Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert 
-          onClose={handleCloseSnackbar} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </div>
-  );
+.App-header {
+  padding: 2rem 0;
 }
 
-export default App;
+.App-header h3 {
+  color: #2e3a4d;
+  font-weight: 700;
+}
+
+.App-header .subtitle1 {
+  color: #6c757d;
+}
+
+/* Calculator Section */
+.calculator-section {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin: 2rem auto;
+  max-width: 800px;
+}
+
+.calculator-section h5 {
+  color: #2e3a4d;
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.result-box {
+  background: #f8f9fa;
+  border-left: 4px solid #4e73df;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.result-box h6 {
+  color: #2e3a4d;
+  margin-bottom: 1rem;
+}
+
+/* Saved Calculations */
+.saved-calculations {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin: 2rem auto;
+  max-width: 800px;
+}
+
+.saved-calculations h5 {
+  color: #2e3a4d;
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.saved-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.saved-item {
+  transition: all 0.3s ease;
+  border-left: 3px solid transparent;
+  text-align: left;
+}
+
+.saved-item:hover {
+  background-color: #f8f9fa;
+  border-left: 3px solid #4e73df;
+}
+
+.affordable {
+  color: #1cc88a;
+}
+
+.not-affordable {
+  color: #e74a3b;
+}
+
+/* Button styling */
+.MuiButton-contained {
+  background-color: #4e73df !important;
+  font-weight: 600 !important;
+}
+
+.MuiButton-contained:hover {
+  background-color: #3a5bd9 !important;
+}
+
+.MuiDivider-root {
+  margin: 2rem auto !important;
+  max-width: 800px;
+}
+
+/* Enhanced button styles */
+.MuiButton-contained {
+  background-color: #4e73df !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0.5px !important;
+  padding: 12px 24px !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  transition: all 0.3s ease !important;
+}
+
+.MuiButton-contained:hover {
+  background-color: #3a5bd9 !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+}
+
+.MuiButton-contained:active {
+  transform: translateY(0);
+}
+
+/* Form inputs */
+.MuiOutlinedInput-root {
+  border-radius: 8px !important;
+}
+
+.MuiInputLabel-root {
+  transform: translate(14px, 14px) scale(1) !important;
+}
+
+.MuiInputLabel-shrink {
+  transform: translate(14px, -9px) scale(0.75) !important;
+}
+
+/* Card hover effects */
+.calculator-section, .saved-calculations {
+  transition: all 0.3s ease;
+}
+
+.calculator-section:hover, .saved-calculations:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .App {
+    padding: 1rem;
+  }
+} 
+  .calculator-section,
+  .saved-calculations {
+    padding: 1rem;
+  }
+@media (max-width: 600px) {
+  .result-box .MuiGrid-item {
+    width: 100% !important;
+  }
+}

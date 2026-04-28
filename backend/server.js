@@ -13,15 +13,71 @@ const authRoutes = require('./routes/authRoutes');
 const calculationsRoutes = require('./routes/calculationsRoutes');
 const Calculation = require('./models/Calculations'); 
 const CityCost = require('./models/CityCost');
+const cityApi = require('./cityApi');
+const { getCurrencyForCountry, convertFromUsd, convertToUsd } = require('./currency');
+
+const RENT_USD_BASE = 2000;
+const LIVING_USD_BASE = 3000;
+
+async function resolveCityCost(city, country) {
+  let cost = await CityCost.findOne({ city, country });
+  if (cost) return cost;
+
+  const fromApi = await cityApi.fetchRapidApiCityCost(city, country);
+  if (fromApi) {
+    return await CityCost.findOneAndUpdate(
+      { city, country },
+      { ...fromApi, lastUpdated: new Date() },
+      { upsert: true, new: true }
+    );
+  }
+
+  // Fall back to country-level estimates so worldwide cities still produce a result.
+  const fb = cityApi.fallbackIndicesForCountry(country);
+  return await CityCost.findOneAndUpdate(
+    { city, country },
+    { city, country, ...fb, lastUpdated: new Date() },
+    { upsert: true, new: true }
+  );
+}
+
+// `salaryLocal` is the user's annual salary in the country's local currency.
+async function buildCalculation(city, country, salaryLocal) {
+  const cost = await resolveCityCost(city, country);
+  const currency = getCurrencyForCountry(country);
+
+  // Convert to USD because the cost-of-living indices are USD-anchored.
+  const salaryUsd = await convertToUsd(salaryLocal, currency.code);
+  const monthlySalaryUsd = salaryUsd / 12;
+  const rentUsd = (cost.rentIndex / 100) * RENT_USD_BASE;
+  const livingUsd = (cost.costOfLivingIndex / 100) * LIVING_USD_BASE;
+  const disposableUsd = monthlySalaryUsd - rentUsd - livingUsd;
+
+  // Convert all results back to the local currency for display.
+  const [monthlySalary, estimatedMonthlyRent, estimatedMonthlyLivingCost, disposableIncome] = await Promise.all([
+    convertFromUsd(monthlySalaryUsd, currency.code),
+    convertFromUsd(rentUsd, currency.code),
+    convertFromUsd(livingUsd, currency.code),
+    convertFromUsd(disposableUsd, currency.code),
+  ]);
+
+  return {
+    city: cost.city,
+    country: cost.country,
+    monthlySalary,
+    estimatedMonthlyRent,
+    estimatedMonthlyLivingCost,
+    disposableIncome,
+    affordability: disposableIncome > 0 ? 'Affordable' : 'Not Affordable',
+    currencyCode: currency.code,
+    currencySymbol: currency.symbol,
+  };
+}
 
 
 
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://affordacity-frontend.onrender.com',
-    'https://affordacity.onrender.com'
-  ],
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -42,18 +98,17 @@ app.use('/api', authRoutes); //register/login
 app.use('/api', calculationsRoutes);
 
 
-// Connect to MongoDB
-if (!process.env.MONGODB_URI) {
-  console.error('❌ MONGODB_URI is not set in .env');
-  process.exit(1);
+// Connect to MongoDB (uses real MongoDB if MONGODB_URI is set, otherwise embedded in-memory)
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'dev-only-jwt-secret-change-me';
+  console.warn('⚠️  JWT_SECRET not set — using insecure default for development');
 }
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+const { connect: connectDB } = require('./db');
+connectDB().catch(err => {
+  console.error('❌ MongoDB connection error:', err.message);
+  process.exit(1);
+});
 
 // Login -handled in authRoutes.js
 
@@ -66,81 +121,32 @@ mongoose.connect(process.env.MONGODB_URI)
 // update calculations
 app.put('/api/update-calculation', requireAuth, async (req, res) => {
   const { timestamp, salary } = req.body;
-
   if (!timestamp || !salary) {
     return res.status(400).json({ error: 'Missing timestamp or salary' });
   }
-
   try {
-    const newSalary = parseFloat(salary);
-    const monthlySalary = newSalary / 12;
-
-    // Re-fetch calculation
     const calc = await Calculation.findOne({ userId: req.userId, timestamp });
-    if (!calc) {
-      return res.status(404).json({ error: 'Calculation not found' });
-    }
+    if (!calc) return res.status(404).json({ error: 'Calculation not found' });
 
-    // Get city data
-    let costData = await CityCost.findOne({city: calc.city});
+    const newSalary = parseFloat(salary);
+    const recalc = await buildCalculation(calc.city, calc.country || '', newSalary);
 
-    if (!costData) {
-      //Fetch from RapidAPI and cache it
-      try{
-        const apiResponse = await axios.get(
-          'https://cities-cost-of-living-and-average-prices-api.p.rapidapi.com/city',
-          {
-            params: {city: calc.city},
-            headers: {
-              'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
-              'X-RapidAPI-Host': 'cities-cost-of-living-and-average-prices-api.p.rapidapi.com'
-            }
-          }
-        );
-        costData = await CityCost.findOneAndUpdate(
-          {city: calc.city},
-          {
-            city: calc.city,
-            country: apiResponse.data.country,
-            costofLivingIndex: apiResponse.data.cost_of_living_index,
-            rentIndex: apiResponse.data.rent_index,
-            groceriesIndex: apiResponse.data.groceries_index,
-            restaurantIndex: apiResponse.data.restaurant_price_index,
-          },
-          {upsert: true, new: true}
-        );
-      } catch (apiErr) {
-        console.error('RapidAPI fetch failed:', apiErr.message);
-        console.error('RapidAPI status:', apiErr.response?.status);
-        console.error('RapiAPI response data:', JSON.stringify(apiErr.response?.data));
-        return res.status(404).json({message: 'City cost data not available'});
-      }
-    }
-
-    // Recalculate
-    const estimatedMonthlyRent = (costData.rentIndex / 100) * 2000;
-    const estimatedMonthlyLivingCost = (costData.costOfLivingIndex / 100) * 3000;
-    const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
-    const affordability = disposableIncome > 0 ? 'Affordable' : 'Not Affordable';
-
-    // Update database
-    const result = await Calculation.updateOne(
+    await Calculation.updateOne(
       { userId: req.userId, timestamp },
       {
         $set: {
           salary: newSalary,
-          disposableIncome,
-          affordability
-        }
+          country: recalc.country,
+          estimatedMonthlyRent: recalc.estimatedMonthlyRent,
+          estimatedMonthlyLivingCost: recalc.estimatedMonthlyLivingCost,
+          disposableIncome: recalc.disposableIncome,
+          affordability: recalc.affordability,
+          currencyCode: recalc.currencyCode,
+          currencySymbol: recalc.currencySymbol,
+        },
       }
     );
-
-    if (result.modifiedCount === 0) {
-      return res.status(404).json({ error: 'No calculation found to update' });
-    }
-
-    res.json({ success: true });
-
+    res.json({ success: true, ...recalc });
   } catch (err) {
     console.error('Update error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -150,17 +156,23 @@ app.put('/api/update-calculation', requireAuth, async (req, res) => {
 
 //save calc
 app.post('/api/save-calculation', requireAuth, async (req, res) => {
-  const { city, salary, estimatedMonthlyRent, estimatedMonthlyLivingCost, disposableIncome, affordability, timestamp } = req.body;
+  const {
+    city, country, salary, estimatedMonthlyRent, estimatedMonthlyLivingCost,
+    disposableIncome, affordability, currencyCode, currencySymbol, timestamp,
+  } = req.body;
 
   const newCalc = new Calculation({
     userId: req.userId,
     city,
+    country,
     salary,
     estimatedMonthlyRent,
     estimatedMonthlyLivingCost,
     disposableIncome,
     affordability,
-    timestamp
+    currencyCode: currencyCode || 'USD',
+    currencySymbol: currencySymbol || '$',
+    timestamp,
   });
 
   await newCalc.save();
@@ -184,27 +196,37 @@ app.delete('/api/delete-calculation', requireAuth, async (req, res) => {
 
 
 // Routes
-//API returns list of all countries & cities
-//1. Get all countries pulled from DB (already seeded)
+// Currency lookup for a country (used by the frontend salary input)
+app.get('/api/currency', (req, res) => {
+  const { country } = req.query;
+  const currency = getCurrencyForCountry(country || '');
+  res.json(currency);
+});
+
+// Worldwide list of countries (from external directory)
 app.get('/api/countries', async (req, res) => {
   try {
-    const countries = await CityCost.distinct('country');
-    res.json(countries.sort());
+    const countries = await cityApi.getAllCountries();
+    if (countries && countries.length) return res.json(countries);
+    // Fallback to whatever is in the DB if external API is unavailable
+    const fromDb = await CityCost.distinct('country');
+    res.json(fromDb.sort());
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch countries' });
   }
 });
 
-//2. Get cities by country pullled from DB
+// Worldwide cities for a given country
 app.get('/api/cities-by-country', async (req, res) => {
-  const {country} = req.query;
-  if (!country) return res.status(400).json({ message: 'Country is required'});
-
+  const { country } = req.query;
+  if (!country) return res.status(400).json({ message: 'Country is required' });
   try {
-    const cities = await CityCost.distinct('city', {country});
-    res.json(cities.sort());
+    const cities = await cityApi.getCitiesForCountry(country);
+    if (cities && cities.length) return res.json(cities);
+    const fromDb = await CityCost.distinct('city', { country });
+    res.json(fromDb.sort());
   } catch (err) {
-    res.status(500).json({message: 'Failed to fetch cities'});
+    res.status(500).json({ message: 'Failed to fetch cities' });
   }
 });
 
@@ -305,36 +327,13 @@ app.get('/api/cost/:city', async (req, res) => {
 
 //afford cost calculator
 app.post('/api/calculate', async (req, res) => {
-  const {city, country, salary} = req.body;
-
+  const { city, country, salary } = req.body;
   if (!city || !country || !salary) {
-    return res.status(400).json({message: 'City, country and salary are required'});
+    return res.status(400).json({ message: 'City, country and salary are required' });
   }
-
   try {
-    //Check DB cache first
-    const costData = await CityCost.findOne({ city, country });
-
-    if (!costData) {
-      return re.status(404).json({message: `No data found for ${city}, ${country}`});
-    }
-
-    // Calculations
-    const monthlySalary = salary / 12;
-    const estimatedMonthlyRent = (costData.rentIndex / 100) * 2000; // Approximation
-    const estimatedMonthlyLivingCost = (costData.costOfLivingIndex / 100) * 3000; // Approximation
-    const disposableIncome = monthlySalary - estimatedMonthlyRent - estimatedMonthlyLivingCost;
-    const affordability = disposableIncome > 0 ? 'affordable' : 'not affordable';
-
-    res.json({
-      city: costData.city,
-      country: costData.country,
-      monthlySalary,
-      estimatedMonthlyRent,
-      estimatedMonthlyLivingCost,
-      disposableIncome,
-      affordability
-    });
+    const result = await buildCalculation(city, country, parseFloat(salary));
+    res.json(result);
   } catch (err) {
     console.error('Calculate error:', err.message);
     res.status(500).json({ message: err.message });
@@ -344,8 +343,19 @@ app.post('/api/calculate', async (req, res) => {
 
 
 
+// Serve built React frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, '..', 'frontend', 'build');
+  app.use(express.static(buildPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/fetch-')) return next();
+    res.sendFile(path.join(buildPath, 'index.html'));
+  });
+}
+
 // Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3001;
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+app.listen(PORT, HOST, () => console.log(`Server running on http://${HOST}:${PORT}`));
 
 
