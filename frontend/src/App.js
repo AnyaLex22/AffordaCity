@@ -1,166 +1,280 @@
-/* In App.css, replace the content with: */
+import React, { useState, useEffect } from 'react';
+import './App.css';
+import LoginPage from './LoginPage';
+import apiClient from './api/client';
+import {
+  Typography, Button, TextField, MenuItem,
+  Grid, Divider, List, ListItem, ListItemText,
+  IconButton, CircularProgress
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import EmptyState from './components/EmptyState';
 
-.App {
-  text-align: center;
-  background-color: #f5f7fa;
-  min-height: 100vh;
-  padding: 2rem;
-}
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  const [countries, setCountries] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [country, setCountry] = useState('');
+  const [city, setCity] = useState('');
+  const [salary, setSalary] = useState('');
+  const [currency, setCurrency] = useState({ code: 'USD', symbol: '$' });
+  const [result, setResult] = useState(null);
+  const [savedCalcs, setSavedCalcs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editingTimestamp, setEditingTimestamp] = useState(null);
+  const [editSalary, setEditSalary] = useState('');
+  const [error, setError] = useState(null);
 
-.App-header {
-  padding: 2rem 0;
-}
+  // Fetch countries on mount
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    apiClient.get('/countries')
+      .then(data => setCountries(data))
+      .catch(err => console.error('Failed to fetch countries:', err));
+    fetchSavedCalcs();
+  }, [isLoggedIn]);
 
-.App-header h3 {
-  color: #2e3a4d;
-  font-weight: 700;
-}
+  // Fetch cities when country changes
+  useEffect(() => {
+    if (!country) return;
+    setCity('');
+    setCities([]);
+    apiClient.get(`/cities-by-country?country=${encodeURIComponent(country)}`)
+      .then(data => setCities(data))
+      .catch(err => console.error('Failed to fetch cities:', err));
 
-.App-header .subtitle1 {
-  color: #6c757d;
-}
+    apiClient.get(`/currency?country=${encodeURIComponent(country)}`)
+      .then(data => setCurrency(data))
+      .catch(err => console.error('Failed to fetch currency:', err));
+  }, [country]);
 
-/* Calculator Section */
-.calculator-section {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 2rem;
-  margin: 2rem auto;
-  max-width: 800px;
-}
+  const fetchSavedCalcs = () => {
+    apiClient.get('/user-calculations')
+      .then(data => setSavedCalcs(data))
+      .catch(err => console.error('Failed to fetch saved calculations:', err));
+  };
 
-.calculator-section h5 {
-  color: #2e3a4d;
-  text-align: left;
-  margin-bottom: 1.5rem;
-}
+  const handleCalculate = async () => {
+    if (!city || !country || !salary) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await apiClient.post('/calculate', { city, country, salary: parseFloat(salary) });
+      setResult(data);
+    } catch (err) {
+      setError(err.message || 'Calculation failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-.result-box {
-  background: #f8f9fa;
-  border-left: 4px solid #4e73df;
-  padding: 1.5rem;
-  margin-top: 1.5rem;
-  border-radius: 5px;
-  text-align: left;
-}
+  const handleSave = async () => {
+    if (!result) return;
+    try {
+      await apiClient.post('/save-calculation', {
+        ...result,
+        salary: parseFloat(salary),
+        timestamp: new Date().toISOString(),
+      });
+      fetchSavedCalcs();
+    } catch (err) {
+      setError(err.message || 'Failed to save.');
+    }
+  };
 
-.result-box h6 {
-  color: #2e3a4d;
-  margin-bottom: 1rem;
-}
+  const handleDelete = async (timestamp) => {
+    try {
+      await apiClient.delete('/delete-calculation', { data: { timestamp } });
+      setSavedCalcs(prev => prev.filter(c => c.timestamp !== timestamp));
+    } catch (err) {
+      setError(err.message || 'Failed to delete.');
+    }
+  };
 
-/* Saved Calculations */
-.saved-calculations {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 2rem;
-  margin: 2rem auto;
-  max-width: 800px;
-}
+  const handleEdit = async (timestamp) => {
+    try {
+      const data = await apiClient.put('/update-calculation', {
+        timestamp,
+        salary: parseFloat(editSalary),
+      });
+      setEditingTimestamp(null);
+      setEditSalary('');
+      fetchSavedCalcs();
+    } catch (err) {
+      setError(err.message || 'Failed to update.');
+    }
+  };
 
-.saved-calculations h5 {
-  color: #2e3a4d;
-  text-align: left;
-  margin-bottom: 1.5rem;
-}
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    setResult(null);
+    setSavedCalcs([]);
+  };
 
-.saved-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
+  const fmt = (val, sym) =>
+    `${sym}${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-.saved-item {
-  transition: all 0.3s ease;
-  border-left: 3px solid transparent;
-  text-align: left;
-}
-
-.saved-item:hover {
-  background-color: #f8f9fa;
-  border-left: 3px solid #4e73df;
-}
-
-.affordable {
-  color: #1cc88a;
-}
-
-.not-affordable {
-  color: #e74a3b;
-}
-
-/* Button styling */
-.MuiButton-contained {
-  background-color: #4e73df !important;
-  font-weight: 600 !important;
-}
-
-.MuiButton-contained:hover {
-  background-color: #3a5bd9 !important;
-}
-
-.MuiDivider-root {
-  margin: 2rem auto !important;
-  max-width: 800px;
-}
-
-/* Enhanced button styles */
-.MuiButton-contained {
-  background-color: #4e73df !important;
-  font-weight: 600 !important;
-  text-transform: none !important;
-  letter-spacing: 0.5px !important;
-  padding: 12px 24px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-  transition: all 0.3s ease !important;
-}
-
-.MuiButton-contained:hover {
-  background-color: #3a5bd9 !important;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
-  transform: translateY(-1px);
-}
-
-.MuiButton-contained:active {
-  transform: translateY(0);
-}
-
-/* Form inputs */
-.MuiOutlinedInput-root {
-  border-radius: 8px !important;
-}
-
-.MuiInputLabel-root {
-  transform: translate(14px, 14px) scale(1) !important;
-}
-
-.MuiInputLabel-shrink {
-  transform: translate(14px, -9px) scale(0.75) !important;
-}
-
-/* Card hover effects */
-.calculator-section, .saved-calculations {
-  transition: all 0.3s ease;
-}
-
-.calculator-section:hover, .saved-calculations:hover {
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
-}
-
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .App {
-    padding: 1rem;
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
   }
-} 
-  .calculator-section,
-  .saved-calculations {
-    padding: 1rem;
-  }
-@media (max-width: 600px) {
-  .result-box .MuiGrid-item {
-    width: 100% !important;
-  }
+
+  return (
+    <div className="App">
+      <div className="App-header">
+        <Typography variant="h3" component="h3" fontWeight={700}>AffordaCity</Typography>
+        <Typography className="subtitle1" variant="subtitle1">
+          Find out if you can afford to live in your dream city
+        </Typography>
+        <Button variant="outlined" size="small" onClick={handleLogout} sx={{ mt: 1 }}>
+          Logout
+        </Button>
+      </div>
+
+      {/* Calculator */}
+      <div className="calculator-section">
+        <Typography variant="h5">Cost of Living Calculator</Typography>
+
+        {error && (
+          <Typography color="error" sx={{ mb: 1 }}>{error}</Typography>
+        )}
+
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              select fullWidth label="Country"
+              value={country} onChange={e => setCountry(e.target.value)}
+            >
+              {countries.map(c => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              select fullWidth label="City"
+              value={city} onChange={e => setCity(e.target.value)}
+              disabled={!country || cities.length === 0}
+            >
+              {cities.map(c => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth label={`Annual Salary (${currency.code})`}
+              type="number" value={salary}
+              onChange={e => setSalary(e.target.value)}
+              InputProps={{ startAdornment: <span style={{ marginRight: 4 }}>{currency.symbol}</span> }}
+            />
+          </Grid>
+        </Grid>
+
+        <Button
+          variant="contained" sx={{ mt: 2 }}
+          onClick={handleCalculate} disabled={loading}
+        >
+          {loading ? <CircularProgress size={20} color="inherit" /> : 'Calculate'}
+        </Button>
+
+        {result && (
+          <div className="result-box">
+            <Typography variant="h6">Results for {result.city}, {result.country}</Typography>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              {[
+                ['Monthly Salary', result.monthlySalary],
+                ['Est. Monthly Rent', result.estimatedMonthlyRent],
+                ['Est. Living Cost', result.estimatedMonthlyLivingCost],
+                ['Disposable Income', result.disposableIncome],
+              ].map(([label, val]) => (
+                <Grid item xs={12} sm={6} key={label}>
+                  <Typography variant="body2" color="textSecondary">{label}</Typography>
+                  <Typography variant="h6">{fmt(val, result.currencySymbol)}</Typography>
+                </Grid>
+              ))}
+            </Grid>
+            <Typography
+              sx={{ mt: 2, fontWeight: 700 }}
+              className={result.affordability === 'Affordable' ? 'affordable' : 'not-affordable'}
+            >
+              {result.affordability}
+            </Typography>
+            <Button variant="outlined" sx={{ mt: 2 }} onClick={handleSave}>
+              Save Calculation
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <Divider />
+
+      {/* Saved Calculations */}
+      <div className="saved-calculations">
+        <Typography variant="h5">Saved Calculations</Typography>
+        {savedCalcs.length === 0 ? (
+          <EmptyState
+            title="No saved calculations yet"
+            subtitle="Run a calculation above and save it to see it here."
+          />
+        ) : (
+          <List className="saved-list">
+            {savedCalcs.map((calc) => (
+              <ListItem
+                key={calc.timestamp}
+                className="saved-item"
+                secondaryAction={
+                  <>
+                    <IconButton onClick={() => { setEditingTimestamp(calc.timestamp); setEditSalary(calc.salary); }}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleDelete(calc.timestamp)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </>
+                }
+              >
+                <ListItemText
+                  primary={`${calc.city}, ${calc.country}`}
+                  secondary={
+                    <>
+                      <span>Salary: {fmt(calc.salary, calc.currencySymbol || '$')} {calc.currencyCode} / yr</span>
+                      <br />
+                      <span>Rent: {fmt(calc.estimatedMonthlyRent, calc.currencySymbol || '$')}/mo · </span>
+                      <span>Living: {fmt(calc.estimatedMonthlyLivingCost, calc.currencySymbol || '$')}/mo · </span>
+                      <span className={calc.affordability === 'Affordable' ? 'affordable' : 'not-affordable'}>
+                        {calc.affordability}
+                      </span>
+                    </>
+                  }
+                />
+                {editingTimestamp === calc.timestamp && (
+                  <Grid container spacing={1} sx={{ mt: 1, maxWidth: 300 }}>
+                    <Grid item xs={8}>
+                      <TextField
+                        size="small" type="number"
+                        label="New Salary" value={editSalary}
+                        onChange={e => setEditSalary(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Button size="small" variant="contained" onClick={() => handleEdit(calc.timestamp)}>
+                        Save
+                      </Button>
+                    </Grid>
+                  </Grid>
+                )}
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </div>
+    </div>
+  );
 }
+
+export default App;
